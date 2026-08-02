@@ -50,6 +50,8 @@ uv run rp-agent shell
 
 输入 `<命令> --help`(如 `config --help`)查看该命令详细用法与参数。
 
+交互终端中,输入命令实时着色:命令黄色、参数亮天蓝、`--选项` 灰色;支持方向键历史。
+
 ## API 连接
 
 连接配置存于 `data/api/<name>.json`(明文 api_key,不入 git):
