@@ -190,17 +190,28 @@ _KNOWN_COMMANDS: set[str] = set(_COMMANDS) | {
     a for e in HELP_ENTRIES for a in e["aliases"]
 }
 
+# 每个命令的合法参数(仅这些词着色为"有效参数")
+_COMMAND_ARGS: dict[str, set[str]] = {
+    "api": {"list", "get", "add", "del", "test"},
+    "help": _KNOWN_COMMANDS,
+    "?": _KNOWN_COMMANDS,
+}
+
+# 有效选项(--长选项 / -短选项,灰色)
+_VALID_OPTIONS: set[str] = {"--help", "-h"}
+
 SHELL_STYLE = Style.from_dict(
     {
-        "cmd": "ansiyellow bold",
-        "opt": "ansigray",
-        "param": "ansibrightcyan",
+        "cmd": "ansiyellow bold",  # 有效命令:黄色
+        "param": "ansibrightcyan",  # 有效参数:亮天蓝
+        "opt": "ansigray",  # --长/-短选项:灰色
+        # 其他 token(class:default)不定义:保持终端默认白色
     }
 )
 
 
 class ShellLexer(Lexer):
-    """实时词法着色:首词命令黄、-前缀选项灰、其他参数亮天蓝。"""
+    """实时词法着色:有效命令黄、有效参数亮天蓝、有效选项灰,其余默认白。"""
 
     def lex_document(self, document):
         def get_line(lineno: int):
@@ -209,16 +220,21 @@ class ShellLexer(Lexer):
             tokens: list[tuple[str, str]] = []
             parts = document.text.split()
             index = 0
+            first = parts[0] if parts else ""
+            is_known_cmd = first in _KNOWN_COMMANDS
+            valid_args = _COMMAND_ARGS.get(first, set()) if is_known_cmd else set()
             for i, part in enumerate(parts):
                 start = document.text.find(part, index)
                 if start > index:
                     tokens.append(("class:space", document.text[index:start]))
-                if i == 0 and part in _KNOWN_COMMANDS:
+                if i == 0 and is_known_cmd:
                     style = "class:cmd"
-                elif part.startswith("-") and len(part) > 1:
+                elif part.startswith("-") and part in _VALID_OPTIONS:
                     style = "class:opt"
-                else:
+                elif i > 0 and part in valid_args:
                     style = "class:param"
+                else:
+                    style = "class:default"
                 tokens.append((style, part))
                 index = start + len(part)
             if index < len(document.text):
