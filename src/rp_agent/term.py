@@ -11,7 +11,6 @@ _ANSI = {
     "bold": "\033[1m",
 }
 _RESET = "\033[0m"
-_INPUT_ESCAPE = "\033[96m"  # 输入回显色:亮天蓝
 
 
 def supports_color() -> bool:
@@ -52,17 +51,3 @@ def gray(text: str) -> str:
 
 def bold(text: str) -> str:
     return f"{_ANSI['bold']}{text}{_RESET}" if _ENABLED else text
-
-
-def input_prompt(text: str) -> str:
-    """构造输入提示符:文字白色,用户输入回显亮天蓝。非 tty 原样返回。"""
-    if not _ENABLED:
-        return text
-    return _RESET + text + _INPUT_ESCAPE
-
-
-def reset_after_input() -> None:
-    """输入后重置终端颜色(避免污染后续输出)。非 tty 无操作。"""
-    if _ENABLED:
-        sys.stdout.write(_RESET)
-        sys.stdout.flush()

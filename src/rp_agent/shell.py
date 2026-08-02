@@ -1,8 +1,14 @@
-"""交互式 shell:供测试命令的 REPL 输入口。零依赖。"""
+"""交互式 shell:供测试命令的 REPL 输入口。"""
 from __future__ import annotations
 
 import logging
+import sys
 from typing import Callable
+
+from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.lexers import Lexer
+from prompt_toolkit.shortcuts import prompt as pt_prompt
+from prompt_toolkit.styles import Style
 
 from rp_agent.api.client import ApiError, test_connection
 from rp_agent.api.models import ApiConnection
@@ -15,7 +21,7 @@ from rp_agent.api.store import (
 from rp_agent.config import get_config, reload_config
 from rp_agent.help_data import HELP_ENTRIES, find_entry
 from rp_agent.storage import DATA_DIR, ensure_dirs
-from rp_agent.term import blue, gray, input_prompt, reset_after_input, yellow
+from rp_agent.term import blue, gray, yellow
 
 logger = logging.getLogger("rp_agent")
 
@@ -180,18 +186,73 @@ _COMMANDS: dict[str, tuple[str, Callable[[list[str]], None]]] = {
     "api": ("API 连接管理(api list/get/add/del/test)", _cmd_api),
 }
 
+_KNOWN_COMMANDS: set[str] = set(_COMMANDS) | {
+    a for e in HELP_ENTRIES for a in e["aliases"]
+}
 
-def run_shell(_input: Callable[[str], str] = input) -> None:
+SHELL_STYLE = Style.from_dict(
+    {
+        "cmd": "ansiyellow bold",
+        "opt": "ansigray",
+        "param": "ansibrightcyan",
+    }
+)
+
+
+class ShellLexer(Lexer):
+    """实时词法着色:首词命令黄、-前缀选项灰、其他参数亮天蓝。"""
+
+    def lex_document(self, document):
+        def get_line(lineno: int):
+            if lineno != 0:
+                return []
+            tokens: list[tuple[str, str]] = []
+            parts = document.text.split()
+            index = 0
+            for i, part in enumerate(parts):
+                start = document.text.find(part, index)
+                if start > index:
+                    tokens.append(("class:space", document.text[index:start]))
+                if i == 0 and part in _KNOWN_COMMANDS:
+                    style = "class:cmd"
+                elif part.startswith("-") and len(part) > 1:
+                    style = "class:opt"
+                else:
+                    style = "class:param"
+                tokens.append((style, part))
+                index = start + len(part)
+            if index < len(document.text):
+                tokens.append(("class:space", document.text[index:]))
+            return tokens
+
+        return get_line
+
+
+_pt_history = InMemoryHistory()
+
+
+def _read_line(prompt: str) -> str:
+    """读取输入行:tty 用 prompt_toolkit(实时着色 + 方向键历史),否则回退 input。"""
+    if sys.stdin.isatty():
+        return pt_prompt(
+            prompt,
+            lexer=ShellLexer(),
+            style=SHELL_STYLE,
+            history=_pt_history,
+        )
+    return input(prompt)
+
+
+def run_shell(_input: Callable[[str], str] = _read_line) -> None:
     """交互式主循环。_input 可注入(测试用);Ctrl+C/Ctrl+D 正常退出。"""
     _history.clear()
     print(_BANNER)
     while True:
         try:
-            line = _input(input_prompt(PROMPT))
+            line = _input(PROMPT)
         except (EOFError, KeyboardInterrupt):
             print("退出")
             return
-        reset_after_input()
         cmd, args = parse_line(line)
         if not cmd:
             continue
