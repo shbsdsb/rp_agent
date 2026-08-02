@@ -38,3 +38,12 @@ uv run rp-agent --watch hello
 - `api/` — API 连接配置
 
 所有 data 读写统一走 `src/rp_agent/storage.py`(`json_read`/`json_write`/`safe_path`)。
+
+## 交互式 Shell
+
+```bash
+uv run rp-agent shell
+```
+
+内置命令:`help`(帮助)、`config`(查看配置)、`reload`(热重载配置)、
+`storage`(查看 data 目录)、`hello`(冒烟)、`history`(输入历史)、`exit`/`quit`(退出)。
