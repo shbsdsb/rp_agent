@@ -13,7 +13,9 @@ from rp_agent.api.store import (
     save_connection,
 )
 from rp_agent.config import get_config, reload_config
+from rp_agent.help_data import HELP_ENTRIES, find_entry
 from rp_agent.storage import DATA_DIR, ensure_dirs
+from rp_agent.term import blue, gray, yellow
 
 logger = logging.getLogger("rp_agent")
 
@@ -28,13 +30,6 @@ def parse_line(line: str) -> tuple[str, list[str]]:
     if not parts:
         return "", []
     return parts[0], parts[1:]
-
-
-def _cmd_help(_args: list[str]) -> None:
-    print("可用命令:")
-    for name, (desc, _handler) in sorted(_COMMANDS.items()):
-        print(f"  {name:<10} {desc}")
-    print("  exit/quit  退出 shell")
 
 
 def _cmd_config(_args: list[str]) -> None:
@@ -67,9 +62,49 @@ def _cmd_history(_args: list[str]) -> None:
         print(f"  {i:>3}  {h}")
 
 
+def _colorize_usage(usage: str) -> str:
+    """usage 串按 token 着色:命令黄、-前缀选项灰、<>参数蓝。"""
+    parts = []
+    for tok in usage.split():
+        if tok.startswith("-") and len(tok) > 1:
+            parts.append(gray(tok))
+        elif tok.startswith("<") and tok.endswith(">"):
+            parts.append(blue(tok))
+        else:
+            parts.append(yellow(tok))
+    return " ".join(parts)
+
+
+def _print_command_help(command: str) -> None:
+    entry = find_entry(command)
+    if entry is None:
+        print(f"未知命令: {command}(输入 help 查看可用命令)")
+        return
+    print(f"用法: {_colorize_usage(str(entry['usage']))}")
+    for param, desc in entry["params"]:
+        print(f"  {blue(param):<34} {desc}")
+
+
+def _cmd_help(args: list[str]) -> None:
+    if args:
+        _print_command_help(args[0])
+        return
+    print("可用命令:")
+    width = max(
+        len(e["command"] + (("/" + "/".join(e["aliases"])) if e["aliases"] else ""))
+        for e in HELP_ENTRIES
+    )
+    for e in HELP_ENTRIES:
+        name = e["command"]
+        if e["aliases"]:
+            name += "/" + "/".join(e["aliases"])
+        print(f"  {yellow(name):<{width + 4}} {e['desc']}")
+    print("  输入 <命令> --help 查看详细用法")
+
+
 def _cmd_api(args: list[str]) -> None:
     if not args:
-        print("用法: api <list|get|add|del|test> ...")
+        print(f"用法: {_colorize_usage('api <list|get|add|del|test> ...')}")
         return
     sub = args[0]
     if sub == "list":
@@ -81,7 +116,7 @@ def _cmd_api(args: list[str]) -> None:
             print(f"  {n}")
     elif sub == "get":
         if len(args) < 2:
-            print("用法: api get <name>")
+            print(f"用法: {_colorize_usage('api get <name>')}")
             return
         conn = get_connection(args[1])
         if conn is None:
@@ -96,7 +131,7 @@ def _cmd_api(args: list[str]) -> None:
         print(f"timeout={conn.timeout}")
     elif sub == "add":
         if len(args) < 4:
-            print("用法: api add <name> <base_url> <model> [api_key]")
+            print(f"用法: {_colorize_usage('api add <name> <base_url> <model> [api_key]')}")
             return
         conn = ApiConnection(
             name=args[1],
@@ -111,7 +146,7 @@ def _cmd_api(args: list[str]) -> None:
             print(f"配置无效: {exc}")
     elif sub == "del":
         if len(args) < 2:
-            print("用法: api del <name>")
+            print(f"用法: {_colorize_usage('api del <name>')}")
             return
         if delete_connection(args[1]):
             print(f"已删除连接: {args[1]}")
@@ -119,7 +154,7 @@ def _cmd_api(args: list[str]) -> None:
             print(f"连接不存在: {args[1]}")
     elif sub == "test":
         if len(args) < 2:
-            print("用法: api test <name>")
+            print(f"用法: {_colorize_usage('api test <name>')}")
             return
         conn = get_connection(args[1])
         if conn is None:
@@ -131,7 +166,7 @@ def _cmd_api(args: list[str]) -> None:
         except ApiError as exc:
             print(f"测试失败: {exc}")
     else:
-        print(f"未知子命令: {sub}(用法: api <list|get|add|del|test> ...)")
+        print(f"未知子命令: {sub}(用法: {_colorize_usage('api <list|get|add|del|test> ...')})")
 
 
 _COMMANDS: dict[str, tuple[str, Callable[[list[str]], None]]] = {
@@ -167,6 +202,9 @@ def run_shell(_input: Callable[[str], str] = input) -> None:
         entry = _COMMANDS.get(cmd)
         if entry is None:
             print(f"未知命令: {cmd}(输入 help 查看可用命令)")
+            continue
+        if args == ["--help"]:
+            _print_command_help(cmd)
             continue
         try:
             entry[1](args)

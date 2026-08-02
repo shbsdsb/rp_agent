@@ -71,3 +71,30 @@ def test_shell_api_add_and_get(capsys, monkeypatch, tmp_path):
     assert "已保存连接" in out
     assert "base_url=http://localhost:8000/v1" in out
     assert "api_key=(空)" in out
+
+
+def test_shell_help_shows_alias_same_line(capsys):
+    run_shell(_feed(["help", "exit"]))
+    out = capsys.readouterr().out
+    assert "exit/quit" in out
+    assert "help/?" in out
+
+
+def test_shell_command_dash_help(capsys):
+    run_shell(_feed(["config --help", "exit"]))
+    out = capsys.readouterr().out
+    assert "用法" in out
+    assert "config" in out
+
+
+def test_shell_api_dash_help(capsys):
+    run_shell(_feed(["api --help", "exit"]))
+    out = capsys.readouterr().out
+    assert "用法" in out
+    assert "get <name>" in out
+
+
+def test_shell_output_no_ansi_in_capsys(capsys):
+    run_shell(_feed(["help", "exit"]))
+    out = capsys.readouterr().out
+    assert "\033" not in out  # capsys 非 tty,颜色关闭
