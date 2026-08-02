@@ -5,7 +5,7 @@ import os
 import sys
 
 _ANSI = {
-    "yellow": "\033[33m",
+    "yellow": "\033[1;33m",  # 黄 bold(与 prompt_toolkit ansiyellow bold 同步)
     "blue": "\033[96m",  # 亮天蓝(更浅)
     "gray": "\033[90m",
     "bold": "\033[1m",

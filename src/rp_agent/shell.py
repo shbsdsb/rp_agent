@@ -96,15 +96,11 @@ def _cmd_help(args: list[str]) -> None:
         _print_command_help(args[0])
         return
     print("可用命令:")
-    width = max(
-        len(e["command"] + (("/" + "/".join(e["aliases"])) if e["aliases"] else ""))
-        for e in HELP_ENTRIES
-    )
     for e in HELP_ENTRIES:
         name = e["command"]
         if e["aliases"]:
             name += "/" + "/".join(e["aliases"])
-        print(f"  {yellow(name):<{width + 4}} {e['desc']}")
+        print(f"  {yellow(name)}\t{e['desc']}")
     print("  输入 <命令> --help 查看详细用法")
 
 
