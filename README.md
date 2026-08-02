@@ -27,3 +27,14 @@ uv run rp-agent --watch hello
 ```
 
 代码变更(.py)自动重启;配置文件变更热生效,无需重启。
+
+## 数据存储
+
+项目根 `data/` 目录(不入 git),运行时数据:
+
+- `characters/` — 角色卡
+- `chats/` — 聊天记录
+- `presets/` — RP 预设
+- `api/` — API 连接配置
+
+所有 data 读写统一走 `src/rp_agent/storage.py`(`json_read`/`json_write`/`safe_path`)。
