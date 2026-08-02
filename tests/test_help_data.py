@@ -1,0 +1,28 @@
+from rp_agent.help_data import HELP_ENTRIES, find_entry
+
+
+def test_entries_have_required_fields():
+    for entry in HELP_ENTRIES:
+        assert entry["command"]
+        assert entry["desc"]
+        assert entry["usage"]
+        assert isinstance(entry["params"], list)
+
+
+def test_command_names_unique():
+    names = [e["command"] for e in HELP_ENTRIES]
+    assert len(names) == len(set(names))
+
+
+def test_aliases_unique_and_no_overlap():
+    aliases = [a for e in HELP_ENTRIES for a in e["aliases"]]
+    assert len(aliases) == len(set(aliases))  # 无重复别名
+    names = {e["command"] for e in HELP_ENTRIES}
+    assert not (set(aliases) & names)  # 别名不与命令名重叠
+
+
+def test_find_entry_by_command_and_alias():
+    assert find_entry("help") is not None
+    assert find_entry("?") is not None
+    assert find_entry("quit") is not None
+    assert find_entry("nope") is None
