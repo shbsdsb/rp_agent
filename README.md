@@ -48,6 +48,8 @@ uv run rp-agent shell
 内置命令:`help`(帮助)、`config`(查看配置)、`reload`(热重载配置)、
 `storage`(查看 data 目录)、`hello`(冒烟)、`history`(输入历史)、`exit`/`quit`(退出)。
 
+输入 `<命令> --help`(如 `config --help`)查看该命令详细用法与参数。
+
 ## API 连接
 
 连接配置存于 `data/api/<name>.json`(明文 api_key,不入 git):
