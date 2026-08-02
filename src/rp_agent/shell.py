@@ -4,6 +4,14 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
+from rp_agent.api.client import ApiError, test_connection
+from rp_agent.api.models import ApiConnection
+from rp_agent.api.store import (
+    delete_connection,
+    get_connection,
+    list_connections,
+    save_connection,
+)
 from rp_agent.config import get_config, reload_config
 from rp_agent.storage import DATA_DIR, ensure_dirs
 
@@ -59,6 +67,73 @@ def _cmd_history(_args: list[str]) -> None:
         print(f"  {i:>3}  {h}")
 
 
+def _cmd_api(args: list[str]) -> None:
+    if not args:
+        print("用法: api <list|get|add|del|test> ...")
+        return
+    sub = args[0]
+    if sub == "list":
+        names = list_connections()
+        if not names:
+            print("(无连接)")
+            return
+        for n in names:
+            print(f"  {n}")
+    elif sub == "get":
+        if len(args) < 2:
+            print("用法: api get <name>")
+            return
+        conn = get_connection(args[1])
+        if conn is None:
+            print(f"连接不存在: {args[1]}")
+            return
+        key = conn.api_key
+        masked = key[:3] + "***" if key else "(空)"
+        print(f"name={conn.name}")
+        print(f"base_url={conn.base_url}")
+        print(f"api_key={masked}")
+        print(f"model={conn.model}")
+        print(f"timeout={conn.timeout}")
+    elif sub == "add":
+        if len(args) < 4:
+            print("用法: api add <name> <base_url> <model> [api_key]")
+            return
+        conn = ApiConnection(
+            name=args[1],
+            base_url=args[2],
+            model=args[3],
+            api_key=args[4] if len(args) > 4 else "",
+        )
+        try:
+            save_connection(conn)
+            print(f"已保存连接: {conn.name}")
+        except ValueError as exc:
+            print(f"配置无效: {exc}")
+    elif sub == "del":
+        if len(args) < 2:
+            print("用法: api del <name>")
+            return
+        if delete_connection(args[1]):
+            print(f"已删除连接: {args[1]}")
+        else:
+            print(f"连接不存在: {args[1]}")
+    elif sub == "test":
+        if len(args) < 2:
+            print("用法: api test <name>")
+            return
+        conn = get_connection(args[1])
+        if conn is None:
+            print(f"连接不存在: {args[1]}")
+            return
+        print(f"正在测试连接: {conn.name} ({conn.base_url})…")
+        try:
+            print(f"模型回复: {test_connection(conn)}")
+        except ApiError as exc:
+            print(f"测试失败: {exc}")
+    else:
+        print(f"未知子命令: {sub}(用法: api <list|get|add|del|test> ...)")
+
+
 _COMMANDS: dict[str, tuple[str, Callable[[list[str]], None]]] = {
     "help": ("显示帮助", _cmd_help),
     "?": ("显示帮助", _cmd_help),
@@ -67,6 +142,7 @@ _COMMANDS: dict[str, tuple[str, Callable[[list[str]], None]]] = {
     "storage": ("列出 data 目录内容", _cmd_storage),
     "hello": ("冒烟命令", _cmd_hello),
     "history": ("显示输入历史", _cmd_history),
+    "api": ("API 连接管理(api list/get/add/del/test)", _cmd_api),
 }
 
 

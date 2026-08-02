@@ -45,3 +45,29 @@ def test_help_lists_commands(capsys):
     out = capsys.readouterr().out
     for name in ("help", "config", "reload", "storage", "hello", "history", "exit"):
         assert name in out
+
+
+def test_shell_api_list_empty(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(_feed(["api list", "exit"]))
+    out = capsys.readouterr().out
+    assert "(无连接)" in out
+
+
+def test_shell_api_add_and_get(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add demo http://localhost:8000/v1 gpt-4o",
+                "api get demo",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "已保存连接" in out
+    assert "base_url=http://localhost:8000/v1" in out
+    assert "api_key=(空)" in out
