@@ -45,3 +45,11 @@ def test_watch_without_subcommand_shows_help(monkeypatch):
     assert result.exit_code in (0, 2)
     assert "Usage" in result.stdout + result.stderr
     assert captured == {}
+
+
+def test_shell_command_registered(monkeypatch):
+    called: dict = {}
+    monkeypatch.setattr("rp_agent.shell.run_shell", lambda: called.update(ok=True))
+    result = runner.invoke(app, ["shell"])
+    assert result.exit_code == 0
+    assert called.get("ok") is True

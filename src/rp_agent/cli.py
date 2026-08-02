@@ -111,3 +111,11 @@ def hello() -> None:
     cfg = get_config()
     typer.echo(f"你好!rp-agent 骨架已就绪,当前日志级别: {cfg.log_level}")
     logger.info("hello 命令执行完成")
+
+
+@app.command()
+def shell() -> None:
+    """进入交互式 shell(测试命令用)。"""
+    from rp_agent.shell import run_shell
+
+    run_shell()
