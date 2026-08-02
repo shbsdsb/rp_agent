@@ -1,0 +1,13 @@
+# uv / 虚拟环境
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# 编辑器
+.idea/
+.vscode/
