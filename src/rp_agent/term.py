@@ -6,7 +6,7 @@ import sys
 
 _ANSI = {
     "yellow": "\033[33m",
-    "blue": "\033[34m",
+    "blue": "\033[36m",  # 天蓝
     "gray": "\033[90m",
     "bold": "\033[1m",
 }

@@ -19,7 +19,7 @@ from rp_agent.term import blue, gray, yellow
 
 logger = logging.getLogger("rp_agent")
 
-PROMPT = "rp-agent> "
+PROMPT = blue("rp-agent> ")
 _BANNER = "rp-agent 交互式 shell —— 输入 help 查看可用命令,exit 退出"
 _history: list[str] = []
 
