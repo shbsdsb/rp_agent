@@ -8,5 +8,9 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 }
 
 uv sync | Out-Null
-uv run rp-agent @args
+if ($args.Count -eq 0) {
+    uv run rp-agent shell
+} else {
+    uv run rp-agent @args
+}
 exit $LASTEXITCODE

@@ -11,7 +11,11 @@ if errorlevel 1 (
 )
 
 uv sync >nul
-uv run rp-agent %*
+if "%~1"=="" (
+    uv run rp-agent shell
+) else (
+    uv run rp-agent %*
+)
 set "EXIT_CODE=%ERRORLEVEL%"
 if not "%EXIT_CODE%"=="0" pause
 exit /b %EXIT_CODE%
