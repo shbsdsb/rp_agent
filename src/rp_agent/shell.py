@@ -200,7 +200,7 @@ SHELL_STYLE = Style.from_dict(
     {
         "cmd": "ansiyellow bold",  # 有效命令:黄色
         "param": "ansibrightcyan",  # 有效参数:亮天蓝
-        "opt": "ansigray",  # --长/-短选项:灰色
+        "opt": "ansibrightblack",  # 有效选项:灰色(prompt_toolkit 无 ansigray,用亮黑)
         # 其他 token(class:default)不定义:保持终端默认白色
     }
 )

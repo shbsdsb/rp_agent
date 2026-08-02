@@ -1,4 +1,4 @@
-from rp_agent.shell import ShellLexer
+from rp_agent.shell import SHELL_STYLE, ShellLexer
 
 
 def _tokens(text: str):
@@ -6,6 +6,13 @@ def _tokens(text: str):
     doc = type("Doc", (), {"text": text})()
     get_line = lexer.lex_document(doc)
     return [(style, frag) for style, frag in get_line(0) if frag]
+
+
+def test_style_colors_are_valid():
+    """prompt_toolkit 颜色名必须有效(如 opt 用 ansibrightblack 而非不存在的 ansigray)。"""
+    for style_class in ("cmd", "param", "opt"):
+        attrs = SHELL_STYLE.get_attrs_for_style_str(f"class:{style_class}")
+        assert attrs.color, f"class:{style_class} 缺少有效颜色"
 
 
 def test_known_command_is_cmd():
