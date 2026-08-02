@@ -15,11 +15,11 @@ from rp_agent.api.store import (
 from rp_agent.config import get_config, reload_config
 from rp_agent.help_data import HELP_ENTRIES, find_entry
 from rp_agent.storage import DATA_DIR, ensure_dirs
-from rp_agent.term import blue, gray, yellow
+from rp_agent.term import blue, gray, input_prompt, reset_after_input, yellow
 
 logger = logging.getLogger("rp_agent")
 
-PROMPT = blue("rp-agent> ")
+PROMPT = "rp-agent> "
 _BANNER = "rp-agent 交互式 shell —— 输入 help 查看可用命令,exit 退出"
 _history: list[str] = []
 
@@ -187,10 +187,11 @@ def run_shell(_input: Callable[[str], str] = input) -> None:
     print(_BANNER)
     while True:
         try:
-            line = _input(PROMPT)
+            line = _input(input_prompt(PROMPT))
         except (EOFError, KeyboardInterrupt):
             print("退出")
             return
+        reset_after_input()
         cmd, args = parse_line(line)
         if not cmd:
             continue
