@@ -47,3 +47,15 @@ uv run rp-agent shell
 
 内置命令:`help`(帮助)、`config`(查看配置)、`reload`(热重载配置)、
 `storage`(查看 data 目录)、`hello`(冒烟)、`history`(输入历史)、`exit`/`quit`(退出)。
+
+## API 连接
+
+连接配置存于 `data/api/<name>.json`(明文 api_key,不入 git):
+
+```bash
+uv run rp-agent shell
+rp-agent> api add openai https://api.openai.com/v1 gpt-4o sk-xxx
+rp-agent> api test openai
+```
+
+shell 命令:`api list` / `api get <name>` / `api add <name> <base_url> <model> [api_key]` / `api del <name>` / `api test <name>`(OpenAI 兼容)。
