@@ -449,7 +449,7 @@ _KNOWN_COMMANDS: set[str] = set(_COMMANDS) | {
 
 # 每个命令的合法参数(仅这些词着色为"有效参数")
 _COMMAND_ARGS: dict[str, set[str]] = {
-    "api": {"list", "get", "add", "del", "test"},
+    "api": {"list", "get", "add", "del", "test", "pull", "sync", "modify"},
     "help": _KNOWN_COMMANDS,
     "?": _KNOWN_COMMANDS,
 }

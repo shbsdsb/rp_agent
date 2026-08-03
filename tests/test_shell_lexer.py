@@ -27,6 +27,12 @@ def test_command_and_valid_param():
     ]
 
 
+def test_new_subcommands_are_valid_params():
+    for sub in ("pull", "sync", "modify"):
+        tokens = _tokens(f"api {sub}")
+        assert tokens[2] == ("class:param", sub), f"{sub} 应为有效参数"
+
+
 def test_invalid_param_stays_default():
     # "demo" 不是 api 的合法参数 → 默认白色
     assert _tokens("api demo") == [
