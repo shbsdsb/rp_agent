@@ -25,6 +25,13 @@ def system_prompt() -> str | None:
         return None
 
 
+def run() -> None:
+    """CLI 入口:rp-agent chat 直接进入 chat 模式。"""
+    from rp_agent.shell import run_shell
+
+    run_shell(initial_mode="chat")
+
+
 def new_session(connection: str = "") -> session_store.ChatSession:
     """创建新会话;connection 为空时取全局默认连接;打印欢迎/提示。"""
     if not connection:
