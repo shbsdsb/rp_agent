@@ -266,6 +266,26 @@ def test_shell_api_unknown_subcommand(capsys):
     assert "未知子命令" in out
 
 
+def test_shell_api_name_dash_m_with_set(monkeypatch, capsys, tmp_path):
+    """api <name> -m --set f=v 等价 api modify <name> --set f=v(非交互)。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api d -m --set model=gpt-5",
+                "api get d",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "已更新连接" in out
+    conn = get_connection("d")
+    assert conn is not None and conn.model == "gpt-5"
+
+
 def test_shell_help_shows_alias_same_line(capsys):
     run_shell(_feed(["help", "exit"]))
     out = capsys.readouterr().out

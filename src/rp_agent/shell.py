@@ -139,10 +139,11 @@ def _dispatch_api(sub: str, rest: list[str]) -> None:
     elif sub == "modify":
         _api_modify(rest)
     else:
-        # 等效命令:api <name> -m 等价 api modify <name>
+        # 等效命令:api <name> -m [--set f=v ...] 等价 api modify <name> [--set f=v ...]
         opts, _ = parse_args(rest)
         if "modify" in opts:
-            _api_modify([sub])
+            keep = [a for a in rest if a not in ("-m", "--modify")]
+            _api_modify([sub] + keep)
             return
         print(f"未知子命令: {sub}(用法: api <list|get|add|del|test|pull|sync|modify> ...)")
 
