@@ -10,3 +10,10 @@ def test_default_prompt_exists_and_nonempty():
     prompt_file = SYSTEM_DIR / "default.md"
     assert prompt_file.exists()
     assert prompt_file.read_text(encoding="utf-8").strip()
+
+
+def test_mode_prompts_exist_and_nonempty():
+    for name in ("chat", "rp", "agent"):
+        prompt_file = SYSTEM_DIR / f"{name}.txt"
+        assert prompt_file.exists(), f"缺少 prompts/system/{name}.txt"
+        assert prompt_file.read_text(encoding="utf-8").strip()
