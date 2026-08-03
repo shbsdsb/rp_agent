@@ -15,7 +15,7 @@ def _conn(**overrides):
 
 
 def test_default_timeout():
-    assert _conn().timeout == 30.0
+    assert _conn().timeout == 120.0
 
 
 def test_validate_ok():

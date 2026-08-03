@@ -12,7 +12,7 @@ class ApiConnection:
     base_url: str
     api_key: str
     model: str
-    timeout: float = 30.0
+    timeout: float = 120.0
     models_endpoint: str = "/models"
     last_tested: str = ""
 
