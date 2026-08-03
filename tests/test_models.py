@@ -1,6 +1,6 @@
 import pytest
 
-from rp_agent.api.models import ApiConnection
+from rp_agent.api.models import ApiConnection, mask_key
 
 
 def _conn(**overrides):
@@ -29,3 +29,15 @@ def test_validate_ok():
 def test_validate_invalid(overrides):
     with pytest.raises(ValueError):
         _conn(**overrides).validate()
+
+
+def test_new_fields_defaults():
+    conn = _conn()
+    assert conn.models_endpoint == "/models"
+    assert conn.last_tested == ""
+
+
+def test_mask_key():
+    assert mask_key("sk-1234567890abcdef") == "sk-1****cdef"
+    assert mask_key("short") == "****"  # 长度 <= 8
+    assert mask_key("") == "****"

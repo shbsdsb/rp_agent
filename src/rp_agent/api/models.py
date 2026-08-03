@@ -13,6 +13,8 @@ class ApiConnection:
     api_key: str
     model: str
     timeout: float = 30.0
+    models_endpoint: str = "/models"
+    last_tested: str = ""
 
     def validate(self) -> None:
         """校验字段;非法抛 ValueError。"""
@@ -29,3 +31,10 @@ class ApiConnection:
             raise ValueError("模型名不能为空")
         if self.timeout <= 0:
             raise ValueError(f"timeout 必须为正数: {self.timeout}")
+
+
+def mask_key(key: str) -> str:
+    """密钥脱敏:长度<=8 显示 ****;否则 前4 + **** + 后4。"""
+    if len(key) <= 8:
+        return "****"
+    return f"{key[:4]}****{key[-4:]}"

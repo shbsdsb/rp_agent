@@ -33,6 +33,8 @@ def get_connection(name: str) -> ApiConnection | None:
             api_key=str(data.get("api_key", "")),
             model=str(data["model"]),
             timeout=float(data.get("timeout", 30.0)),
+            models_endpoint=str(data.get("models_endpoint", "/models")),
+            last_tested=str(data.get("last_tested", "")),
         )
     except (KeyError, TypeError, ValueError) as exc:
         logger.warning("连接配置损坏(%s): %s", name, exc)
@@ -50,6 +52,8 @@ def save_connection(conn: ApiConnection) -> None:
             "api_key": conn.api_key,
             "model": conn.model,
             "timeout": conn.timeout,
+            "models_endpoint": conn.models_endpoint,
+            "last_tested": conn.last_tested,
         },
     )
 
