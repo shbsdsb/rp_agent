@@ -459,7 +459,10 @@ _COMMANDS: dict[str, tuple[str, Callable[[list[str]], None]]] = {
 }
 
 _KNOWN_COMMANDS: set[str] = (
-    set(_COMMANDS) | {a for e in HELP_ENTRIES for a in e["aliases"]} | set(_MODE_COMMANDS)
+    set(_COMMANDS)
+    | {e["command"] for e in HELP_ENTRIES}
+    | {a for e in HELP_ENTRIES for a in e["aliases"]}
+    | set(_MODE_COMMANDS)
 )
 
 # 每个命令的合法参数(仅这些词着色为"有效参数")
@@ -493,8 +496,9 @@ class ShellLexer(Lexer):
             parts = document.text.split()
             index = 0
             first = parts[0] if parts else ""
-            is_known_cmd = first in _KNOWN_COMMANDS
-            valid_args = _COMMAND_ARGS.get(first, set()) if is_known_cmd else set()
+            bare = first[1:] if first.startswith("/") else first  # / 转义命令剥前缀后判断
+            is_known_cmd = bare in _KNOWN_COMMANDS
+            valid_args = _COMMAND_ARGS.get(bare, set()) if is_known_cmd else set()
             for i, part in enumerate(parts):
                 start = document.text.find(part, index)
                 if start > index:

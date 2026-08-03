@@ -75,3 +75,21 @@ def test_trailing_space_preserved():
 def test_mode_commands_are_cmd():
     for name in ("chat", "rp", "agent"):
         assert _tokens(name) == [("class:cmd", name)]
+
+
+def test_escaped_command_keeps_coloring():
+    # 模式内 / 转义命令:剥掉 / 后仍按已知命令着色
+    assert _tokens("/api list") == [
+        ("class:cmd", "/api"),
+        ("class:space", " "),
+        ("class:param", "list"),
+    ]
+
+
+def test_escaped_exit_is_cmd():
+    # /exit 是模式内主要退出命令,应着色为有效命令
+    assert _tokens("/exit") == [("class:cmd", "/exit")]
+
+
+def test_escaped_unknown_stays_default():
+    assert _tokens("/foobar")[0] == ("class:default", "/foobar")
