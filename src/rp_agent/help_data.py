@@ -65,6 +65,7 @@ HELP_ENTRIES: list[dict[str, object]] = [
             ("pull <name> [--set-default] | pull --url U --key K", "拉取模型列表"),
             ("sync <name> [--set-default]", "测试并拉取模型"),
             ("modify <name> [--set field=value ...]", "交互或非交互修改"),
+            ("<name> -m [--set field=value ...]", "等效 api modify <name>(含 --set)"),
         ],
     },
 ]
