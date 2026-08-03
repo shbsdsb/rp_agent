@@ -4,7 +4,12 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from rp_agent.api.client import ApiError, chat, test_connection as api_test_connection
+from rp_agent.api.client import (
+    ApiError,
+    chat,
+    list_models,
+    test_connection as api_test_connection,
+)
 from rp_agent.api.models import ApiConnection
 
 
@@ -17,6 +22,12 @@ class _FakeHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length)
         self.__class__.captured = json.loads(raw)
+        self.send_response(self.__class__.status)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(self.__class__.body).encode("utf-8"))
+
+    def do_GET(self):
         self.send_response(self.__class__.status)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
@@ -77,3 +88,24 @@ def test_test_connection(fake_server):
     _FakeHandler.status = 200
     _FakeHandler.body = {"choices": [{"message": {"content": "pong"}}]}
     assert api_test_connection(_conn(fake_server)) == "pong"
+
+
+def test_list_models_success(fake_server):
+    _FakeHandler.status = 200
+    _FakeHandler.body = {"data": [{"id": "gpt-4"}, {"id": "gpt-3.5"}]}
+    assert list_models(_conn(fake_server)) == ["gpt-4", "gpt-3.5"]
+
+
+def test_list_models_custom_endpoint(fake_server):
+    _FakeHandler.status = 200
+    _FakeHandler.body = {"data": [{"id": "m1"}]}
+    conn = _conn(fake_server)
+    conn.models_endpoint = "/v1/custom"
+    assert list_models(conn) == ["m1"]
+
+
+def test_list_models_unauthorized(fake_server):
+    _FakeHandler.status = 401
+    _FakeHandler.body = {"error": "no"}
+    with pytest.raises(ApiError, match="认证失败"):
+        list_models(_conn(fake_server))
