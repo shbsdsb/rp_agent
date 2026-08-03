@@ -20,9 +20,9 @@ def _setup(monkeypatch, tmp_path):
     )
 
 
-def test_system_prompt_reads_chat_txt():
-    sp = system_prompt()
-    assert sp is not None and "rp-agent" in sp
+def test_system_prompt_empty_returns_none():
+    # 预设 system 已清空(用户要求),加载结果为 None → 对话不带 system 消息
+    assert system_prompt() is None
 
 
 def test_new_session_uses_default_connection(monkeypatch, tmp_path):
@@ -87,7 +87,7 @@ def test_send_message_api_error(monkeypatch, tmp_path, capsys):
     assert len(s.messages) == 1  # 无 assistant 追加
 
 
-def test_send_message_uses_system_prompt(monkeypatch, tmp_path, capsys):
+def test_send_message_without_system_prompt(monkeypatch, tmp_path, capsys):
     _setup(monkeypatch, tmp_path)
     captured: dict = {}
 
@@ -98,7 +98,8 @@ def test_send_message_uses_system_prompt(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr("rp_agent.core.chat.chat", fake_chat)
     s = create_session(connection="demo")
     send_message(s, "hi")
-    assert captured["messages"][0]["role"] == "system"
+    roles = {m["role"] for m in captured["messages"]}
+    assert "system" not in roles  # 预设已清空,不带 system 消息
     assert captured["messages"][-1] == {"role": "user", "content": "hi"}
 
 
