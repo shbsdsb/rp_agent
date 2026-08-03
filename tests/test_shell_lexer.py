@@ -55,6 +55,11 @@ def test_new_long_option_is_gray():
     assert _tokens("api add --name d")[4] == ("class:opt", "--name")
 
 
+def test_short_option_m_is_gray():
+    # -m(等效 --modify)也应为灰色:api deepseek -m
+    assert _tokens("api deepseek -m")[4] == ("class:opt", "-m")
+
+
 def test_invalid_option_stays_default():
     assert _tokens("config --wat")[2] == ("class:default", "--wat")
 

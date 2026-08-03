@@ -11,8 +11,10 @@ _VALUE_OPTS = {"--name", "--url", "--key", "--model", "--timeout"}
 _LIST_OPTS = {"--filter", "--set"}
 _FLAG_OPTS = {"--verbose", "--force", "--modify", "--pull", "--set-default"}
 
-# 全部已知选项(供 shell 着色判定)
-KNOWN_OPTIONS: set[str] = _VALUE_OPTS | _LIST_OPTS | _FLAG_OPTS | {"--help", "-h"}
+# 全部已知选项(供 shell 着色判定):长选项 + 短选项
+KNOWN_OPTIONS: set[str] = (
+    _VALUE_OPTS | _LIST_OPTS | _FLAG_OPTS | {"--help", "-h"} | set(_SHORT_OPTS)
+)
 
 
 def parse_args(argv: list[str]) -> tuple[dict[str, object], list[str]]:
