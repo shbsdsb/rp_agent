@@ -93,3 +93,14 @@ def test_escaped_exit_is_cmd():
 
 def test_escaped_unknown_stays_default():
     assert _tokens("/foobar")[0] == ("class:default", "/foobar")
+
+
+def test_api_use_set_are_valid_params():
+    for sub in ("use", "set"):
+        tokens = _tokens(f"api {sub}")
+        assert tokens[2] == ("class:param", sub)
+
+
+def test_chat_session_commands_are_cmd():
+    for name in ("new", "list", "load"):
+        assert _tokens(f"/{name}") == [("class:cmd", f"/{name}")]

@@ -66,6 +66,8 @@ HELP_ENTRIES: list[dict[str, object]] = [
             ("sync <name> [--set-default]", "测试并拉取模型"),
             ("modify <name> [--set field=value ...]", "交互或非交互修改"),
             ("<name> -m [--set field=value ...]", "等效 api modify <name>(含 --set)"),
+            ("use <name>", "设置全局默认连接(仅 home 模式)"),
+            ("set <name>", "设置当前会话连接(仅对话模式内)"),
         ],
     },
     {

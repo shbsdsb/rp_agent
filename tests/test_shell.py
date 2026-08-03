@@ -1,5 +1,17 @@
+import pytest
+
 from rp_agent.api.store import get_connection
 from rp_agent.shell import parse_line, run_shell
+
+
+@pytest.fixture(autouse=True)
+def _reset_shell_state():
+    """重置 shell 模块级状态(_chat_session/_current_mode),隔离测试间污染。"""
+    import rp_agent.shell as shell_mod
+
+    shell_mod._chat_session = None
+    shell_mod._current_mode = "home"
+    yield
 
 
 def _feed(lines: list[str]):
@@ -324,7 +336,9 @@ def test_shell_home_prompt_prefix():
     assert prompts[0] == "home> "
 
 
-def test_shell_switch_to_chat_mode(capsys):
+def test_shell_switch_to_chat_mode(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
     prompts: list[str] = []
     seq = iter(["chat", "你好呀", "/exit", "exit"])
 
@@ -338,7 +352,7 @@ def test_shell_switch_to_chat_mode(capsys):
     run_shell(_inner)
     out = capsys.readouterr().out
     assert "chat> " in prompts              # 前缀切换为 chat>
-    assert "[chat] 对话功能尚未实现" in out    # 普通输入 → 灰色占位报错
+    assert "新会话" in out                   # 进入 chat 自动新建会话
     assert "home> " in prompts              # /exit 回到 home
 
 
@@ -388,3 +402,59 @@ def test_shell_initial_mode_agent(capsys):
 
     run_shell(_inner, initial_mode="agent")
     assert prompts[0] == "agent> "  # 从 agent 模式启动
+
+
+def test_shell_chat_message_sends(monkeypatch, tmp_path, capsys):
+    """chat 模式普通输入调用 send_message(替换占位报错)。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    from rp_agent.api.models import ApiConnection
+    from rp_agent.api.store import save_connection
+
+    save_connection(ApiConnection(name="demo", base_url="https://x/v1", api_key="k", model="m"))
+    from rp_agent.api.store import set_default_connection
+
+    set_default_connection("demo")
+    monkeypatch.setattr(
+        "rp_agent.core.chat.chat",
+        lambda conn, messages, **kw: "回复内容",
+    )
+    run_shell(_feed(["chat", "你好", "/exit", "exit"]))
+    out = capsys.readouterr().out
+    assert "回复内容" in out
+
+
+def test_shell_chat_new_list_load(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(_feed(["chat", "/new", "/list", "/load nope", "/exit", "exit"]))
+    out = capsys.readouterr().out
+    assert "新会话" in out        # /new
+    assert "无历史会话" in out or "(无历史会话)" in out
+    assert "会话不存在" in out     # /load nope
+
+
+def test_shell_api_use_home_only(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    from rp_agent.api.models import ApiConnection
+    from rp_agent.api.store import save_connection
+
+    save_connection(ApiConnection(name="demo", base_url="https://x/v1", api_key="k", model="m"))
+    run_shell(_feed(["api use demo", "chat", "/api use demo", "/exit", "exit"]))
+    out = capsys.readouterr().out
+    assert "已设置全局默认连接" in out   # home 可用
+    assert "仅可在 home 模式使用" in out  # chat 模式(/api use)被拒
+
+
+def test_shell_api_set_chat_only(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    from rp_agent.api.models import ApiConnection
+    from rp_agent.api.store import save_connection
+
+    save_connection(ApiConnection(name="demo", base_url="https://x/v1", api_key="k", model="m"))
+    run_shell(_feed(["api set demo", "chat", "/api set demo", "/exit", "exit"]))
+    out = capsys.readouterr().out
+    assert "仅可在对话模式内使用" in out  # home 被拒
+    assert "已切换会话连接" in out        # chat 模式(/api set)可用

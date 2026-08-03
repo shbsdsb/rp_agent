@@ -21,6 +21,7 @@ from rp_agent.api.store import (
     get_connection,
     list_connections,
     save_connection,
+    set_default_connection,
 )
 from rp_agent.config import get_config, reload_config
 from rp_agent.help_data import HELP_ENTRIES, find_entry
@@ -29,8 +30,17 @@ from rp_agent.term import blue, gray, yellow
 
 logger = logging.getLogger("rp_agent")
 
+
+def _chat_business(attr: str):
+    from rp_agent.core import chat as chat_module
+
+    return getattr(chat_module, attr)
+
 Mode = Literal["home", "chat", "rp", "agent"]
 _MODE_COMMANDS: dict[str, Mode] = {"chat": "chat", "rp": "rp", "agent": "agent"}
+_CHAT_COMMANDS: set[str] = {"new", "list", "load"}
+_current_mode: Mode = "home"
+_chat_session = None  # ChatSession | None,运行时赋值(避免循环 import)
 _BANNER = "rp-agent 交互式 shell —— 输入 help 查看可用命令;chat/rp/agent 进入 AI 工作模式,模式内 / 转义调用命令,/exit 返回 home,exit 退出"
 _history: list[str] = []
 
@@ -147,6 +157,10 @@ def _dispatch_api(sub: str, rest: list[str]) -> None:
         _api_sync(rest)
     elif sub == "modify":
         _api_modify(rest)
+    elif sub == "use":
+        _api_use(rest)
+    elif sub == "set":
+        _api_set(rest)
     else:
         # 等效命令:api <name> -m [--set f=v ...] 等价 api modify <name> [--set f=v ...]
         opts, _ = parse_args(rest)
@@ -155,6 +169,40 @@ def _dispatch_api(sub: str, rest: list[str]) -> None:
             _api_modify([sub] + keep)
             return
         print(f"未知子命令: {sub}(用法: api <list|get|add|del|test|pull|sync|modify> ...)")
+
+
+def _api_use(rest: list[str]) -> None:
+    """设置全局默认连接(仅 home 模式)。"""
+    if _current_mode != "home":
+        print("api use 仅可在 home 模式使用")
+        return
+    if not rest:
+        print("用法: api use <name>")
+        return
+    name = rest[0]
+    if get_connection(name) is None:
+        print(f"连接不存在: {name}")
+        return
+    set_default_connection(name)
+    print(f"已设置全局默认连接: {name}")
+
+
+def _api_set(rest: list[str]) -> None:
+    """切换当前会话连接(仅对话模式内)。"""
+    if _current_mode == "home":
+        print("api set 仅可在对话模式内使用")
+        return
+    if not rest:
+        print("用法: api set <name>")
+        return
+    name = rest[0]
+    if get_connection(name) is None:
+        print(f"连接不存在: {name}")
+        return
+    if _chat_session is None:
+        print("当前无会话,请先 /new 或 /load")
+        return
+    _chat_business("set_connection")(_chat_session, name)
 
 
 def _confirm(prompt: str) -> str:
@@ -463,11 +511,12 @@ _KNOWN_COMMANDS: set[str] = (
     | {e["command"] for e in HELP_ENTRIES}
     | {a for e in HELP_ENTRIES for a in e["aliases"]}
     | set(_MODE_COMMANDS)
+    | set(_CHAT_COMMANDS)
 )
 
 # 每个命令的合法参数(仅这些词着色为"有效参数")
 _COMMAND_ARGS: dict[str, set[str]] = {
-    "api": {"list", "get", "add", "del", "test", "pull", "sync", "modify"},
+    "api": {"list", "get", "add", "del", "test", "pull", "sync", "modify", "use", "set"},
     "help": _KNOWN_COMMANDS,
     "?": _KNOWN_COMMANDS,
 }
@@ -540,14 +589,16 @@ def run_shell(
 ) -> None:
     """交互式主循环。_input 可注入(测试用);Ctrl+C/Ctrl+D 正常退出。
 
-    模式:home 为默认;chat/rp/agent 为 AI 工作模式(占位)。
-    非 home 模式下,非 / 开头的输入视为对话内容(占位阶段打印灰色报错);
+    模式:home 为默认;chat 为真实对话;rp/agent 仍为占位。
+    非 home 模式下,非 / 开头的输入在 chat 模式视为对话消息,其余模式打印占位报错;
     / 开头的输入剥掉 / 后走正常命令分派,其中 /exit 返回 home(home 模式 /exit 退出 shell)。
     """
+    global _current_mode, _chat_session
     _history.clear()
     mode = initial_mode
     print(_BANNER)
     while True:
+        _current_mode = mode
         try:
             line = _input(_prompt_for_mode(mode))
         except (EOFError, KeyboardInterrupt):
@@ -573,13 +624,33 @@ def run_shell(
             print(gray(_placeholder_msg(mode)))
             continue
         if mode != "home" and not escaped:
-            print(gray(_placeholder_msg(mode)))
+            if mode == "chat":
+                if _chat_session is None:
+                    _chat_session = _chat_business("new_session")()
+                _chat_business("send_message")(_chat_session, line.strip())
+            else:
+                print(gray(_placeholder_msg(mode)))
             continue
         if args == ["--help"]:
             _print_command_help(cmd)
             continue
         if cmd in _MODE_COMMANDS:
             mode = _MODE_COMMANDS[cmd]
+            if mode == "chat" and _chat_session is None:
+                _chat_session = _chat_business("new_session")()
+            continue
+        if mode != "home" and cmd in _CHAT_COMMANDS:
+            if cmd == "new":
+                _chat_session = _chat_business("new_session")()
+            elif cmd == "list":
+                _chat_business("list_sessions")()
+            elif cmd == "load":
+                if args:
+                    loaded = _chat_business("load_session")(args[0])
+                    if loaded is not None:
+                        _chat_session = loaded
+                else:
+                    print("用法: /load <会话id>(用 /list 查看)")
             continue
         entry = _COMMANDS.get(cmd)
         if entry is None:

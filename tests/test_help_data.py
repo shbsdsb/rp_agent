@@ -31,3 +31,10 @@ def test_find_entry_by_command_and_alias():
 def test_mode_entries_exist():
     for name in ("chat", "rp", "agent"):
         assert find_entry(name) is not None
+
+
+def test_api_entry_mentions_use_set():
+    entry = find_entry("api")
+    params_text = " ".join(p for p, _ in entry["params"])
+    assert "use <name>" in params_text
+    assert "set <name>" in params_text
