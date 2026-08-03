@@ -77,7 +77,10 @@ def _default_conn_path() -> Path:
 
 def get_default_connection() -> ApiConnection | None:
     ensure_dirs()
-    data = json_read(_default_conn_path())
+    path = _default_conn_path()
+    if not path.exists():
+        return None  # 未设置默认连接是常态,不告警
+    data = json_read(path)
     if not isinstance(data, dict):
         return None
     name = str(data.get("name", ""))
