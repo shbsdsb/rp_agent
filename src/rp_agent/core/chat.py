@@ -10,10 +10,14 @@ from pathlib import Path
 from rp_agent.api.client import ApiError, chat
 from rp_agent.api.store import get_connection, get_default_connection, list_connections
 from rp_agent.core import session as session_store
+from rp_agent.term import rgb
 
 SYSTEM_PROMPT_PATH = (
     Path(__file__).resolve().parent.parent / "prompts" / "system" / "chat.txt"
 )
+
+# assistant> 前缀色:#66AAFF(与输入前缀 chat> 的 #FFE066 区分)
+ASSISTANT_PREFIX = "assistant> "
 
 
 def system_prompt() -> str | None:
@@ -73,7 +77,7 @@ def send_message(s: session_store.ChatSession, text: str) -> None:
     except ApiError as exc:
         print(f"API 错误: {exc}")
         return
-    print(reply)
+    print(f"{rgb(ASSISTANT_PREFIX, 102, 170, 255)}{reply}")
     session_store.append_message(s, "assistant", reply)
     session_store.save_session(s)
 

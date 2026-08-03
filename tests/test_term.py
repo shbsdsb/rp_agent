@@ -15,3 +15,14 @@ def test_colors_passthrough_when_disabled(monkeypatch):
     assert term.blue("x") == "x"
     assert term.gray("x") == "x"
     assert term.bold("x") == "x"
+
+
+def test_rgb_truecolor_when_enabled(monkeypatch):
+    monkeypatch.setattr("rp_agent.term._ENABLED", True)
+    assert term.rgb("x", 255, 224, 102) == "\033[38;2;255;224;102mx\033[0m"
+    assert term.rgb("x", 102, 170, 255) == "\033[38;2;102;170;255mx\033[0m"
+
+
+def test_rgb_passthrough_when_disabled(monkeypatch):
+    monkeypatch.setattr("rp_agent.term._ENABLED", False)
+    assert term.rgb("x", 255, 224, 102) == "x"

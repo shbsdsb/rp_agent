@@ -529,6 +529,7 @@ SHELL_STYLE = Style.from_dict(
         "cmd": "ansiyellow bold",  # 有效命令:黄色
         "param": "ansibrightcyan",  # 有效参数:亮天蓝
         "opt": "ansibrightblack",  # 有效选项:灰色(prompt_toolkit 无 ansigray,用亮黑)
+        "chat-prompt": "#FFE066 bold",  # chat 模式输入前缀:暖黄(与 assistant> 的 #66AAFF 区分)
         # 其他 token(class:default)不定义:保持终端默认白色
     }
 )
@@ -575,8 +576,12 @@ _pt_history = InMemoryHistory()
 def _read_line(prompt: str) -> str:
     """读取输入行:tty 用 prompt_toolkit(实时着色 + 方向键历史),否则回退 input。"""
     if sys.stdin.isatty():
+        # chat 模式输入前缀用 chat-prompt 样式(#FFE066)
+        fmt: object = (
+            [("class:chat-prompt", prompt)] if prompt == "chat> " else prompt
+        )
         return pt_prompt(
-            prompt,
+            fmt,
             lexer=ShellLexer(),
             style=SHELL_STYLE,
             history=_pt_history,

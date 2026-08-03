@@ -52,6 +52,7 @@ def test_send_message_success(monkeypatch, tmp_path, capsys):
     save_session(s)
     send_message(s, "你好")
     out = capsys.readouterr().out
+    assert "assistant> " in out  # 回复带 assistant> 前缀
     assert "你好呀!" in out
     assert s.messages[-1] == {"role": "assistant", "content": "你好呀!"}
     from rp_agent.core.session import load_session

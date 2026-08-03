@@ -51,3 +51,8 @@ def gray(text: str) -> str:
 
 def bold(text: str) -> str:
     return f"{_ANSI['bold']}{text}{_RESET}" if _ENABLED else text
+
+
+def rgb(text: str, r: int, g: int, b: int) -> str:
+    """truecolor 着色(如 #FFE066 → rgb(255,224,102));禁用时原样返回。"""
+    return f"\033[38;2;{r};{g};{b}m{text}\033[0m" if _ENABLED else text
