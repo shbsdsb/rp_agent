@@ -62,4 +62,9 @@ rp-agent> api add openai https://api.openai.com/v1 gpt-4o sk-xxx
 rp-agent> api test openai
 ```
 
-shell 命令:`api list` / `api get <name>` / `api add <name> <base_url> <model> [api_key]` / `api del <name>` / `api test <name>`(OpenAI 兼容)。
+shell 命令:`api list [-v] [--filter k=v]` / `api get <name>` /
+`api add --name N --url U --key K [--model M] [--modify] [--pull]` /
+`api del <name> [-f]` / `api test <name> [--timeout N]` /
+`api pull <name> [--set-default]` / `api sync <name> [--set-default]` /
+`api modify <name> [--set field=value]`(交互模式支持 Ctrl+O 保存/Ctrl+X 放弃,/url /key /model 跳转)。
+密钥显示脱敏;`api test`/`sync` 记录 `last_tested`。
