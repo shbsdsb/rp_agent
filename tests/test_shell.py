@@ -1,3 +1,4 @@
+from rp_agent.api.store import get_connection
 from rp_agent.shell import parse_line, run_shell
 
 
@@ -61,7 +62,7 @@ def test_shell_api_add_and_get(capsys, monkeypatch, tmp_path):
     run_shell(
         _feed(
             [
-                "api add demo http://localhost:8000/v1 gpt-4o",
+                "api add --name demo --url http://localhost:8000/v1 --key k --model gpt-4o",
                 "api get demo",
                 "exit",
             ]
@@ -70,7 +71,114 @@ def test_shell_api_add_and_get(capsys, monkeypatch, tmp_path):
     out = capsys.readouterr().out
     assert "已保存连接" in out
     assert "base_url=http://localhost:8000/v1" in out
-    assert "api_key=(空)" in out
+    assert "api_key=****" in out  # key "k" 长度<=8
+
+
+def test_shell_api_add_exists_without_modify(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api add --name d --url https://x/v1 --key k --model m",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "已保存连接" in out
+    assert "连接已存在" in out
+
+
+def test_shell_api_add_modify_overwrites(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api add --modify --name d --url https://x/v2 --key k2 --model m2",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "已保存连接" in out
+    conn = get_connection("d")
+    assert conn is not None and conn.base_url == "https://x/v2"
+
+
+def test_shell_api_get_masks_key(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key sk-1234567890abcdef --model m",
+                "api get d",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "sk-1****cdef" in out
+    assert "sk-1234567890abcdef" not in out
+
+
+def test_shell_api_modify_set_atomic(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api modify d --set model=gpt-5 --set badfield=1",
+                "api get d",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "未知字段" in out
+    assert "model=gpt-5" not in out  # 原子:未写入
+
+
+def test_shell_api_del_confirm_decline(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    monkeypatch.setattr("rp_agent.shell._confirm", lambda _p: "n")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api del d",
+                "api get d",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "已取消" in out
+    assert get_connection("d") is not None  # 未删除
+
+
+def test_shell_api_del_force(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api del d -f",
+                "api get d",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "已删除连接" in out
+    assert "连接不存在" in out
 
 
 def test_shell_help_shows_alias_same_line(capsys):

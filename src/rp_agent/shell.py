@@ -5,13 +5,16 @@ import logging
 import sys
 from typing import Callable
 
+from datetime import datetime, timezone
+
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.shortcuts import prompt as pt_prompt
 from prompt_toolkit.styles import Style
 
-from rp_agent.api.client import ApiError, test_connection
-from rp_agent.api.models import ApiConnection
+from rp_agent.api.args import parse_args
+from rp_agent.api.client import ApiError, list_models, test_connection
+from rp_agent.api.models import ApiConnection, mask_key
 from rp_agent.api.store import (
     delete_connection,
     get_connection,
@@ -106,69 +109,251 @@ def _cmd_help(args: list[str]) -> None:
 
 def _cmd_api(args: list[str]) -> None:
     if not args:
-        print(f"用法: {_colorize_usage('api <list|get|add|del|test> ...')}")
+        print(f"用法: {_colorize_usage('api <list|get|add|del|test|pull|sync|modify> ...')}")
         return
     sub = args[0]
+    try:
+        _dispatch_api(sub, args[1:])
+    except ValueError as exc:
+        print(f"参数错误: {exc}")
+    except ApiError as exc:
+        print(f"API 错误: {exc}")
+
+
+def _dispatch_api(sub: str, rest: list[str]) -> None:
     if sub == "list":
-        names = list_connections()
-        if not names:
-            print("(无连接)")
-            return
-        for n in names:
-            print(f"  {n}")
+        _api_list(rest)
     elif sub == "get":
-        if len(args) < 2:
-            print(f"用法: {_colorize_usage('api get <name>')}")
-            return
-        conn = get_connection(args[1])
-        if conn is None:
-            print(f"连接不存在: {args[1]}")
-            return
-        key = conn.api_key
-        masked = key[:3] + "***" if key else "(空)"
-        print(f"name={conn.name}")
-        print(f"base_url={conn.base_url}")
-        print(f"api_key={masked}")
-        print(f"model={conn.model}")
-        print(f"timeout={conn.timeout}")
+        _api_get(rest)
     elif sub == "add":
-        if len(args) < 4:
-            print(f"用法: {_colorize_usage('api add <name> <base_url> <model> [api_key]')}")
-            return
-        conn = ApiConnection(
-            name=args[1],
-            base_url=args[2],
-            model=args[3],
-            api_key=args[4] if len(args) > 4 else "",
-        )
-        try:
-            save_connection(conn)
-            print(f"已保存连接: {conn.name}")
-        except ValueError as exc:
-            print(f"配置无效: {exc}")
+        _api_add(rest)
     elif sub == "del":
-        if len(args) < 2:
-            print(f"用法: {_colorize_usage('api del <name>')}")
-            return
-        if delete_connection(args[1]):
-            print(f"已删除连接: {args[1]}")
-        else:
-            print(f"连接不存在: {args[1]}")
+        _api_del(rest)
     elif sub == "test":
-        if len(args) < 2:
-            print(f"用法: {_colorize_usage('api test <name>')}")
-            return
-        conn = get_connection(args[1])
-        if conn is None:
-            print(f"连接不存在: {args[1]}")
-            return
-        print(f"正在测试连接: {conn.name} ({conn.base_url})…")
-        try:
-            print(f"模型回复: {test_connection(conn)}")
-        except ApiError as exc:
-            print(f"测试失败: {exc}")
+        _api_test(rest)
+    elif sub == "pull":
+        _api_pull(rest)
+    elif sub == "sync":
+        _api_sync(rest)
+    elif sub == "modify":
+        _api_modify(rest)
     else:
-        print(f"未知子命令: {sub}(用法: {_colorize_usage('api <list|get|add|del|test> ...')})")
+        print(f"未知子命令: {sub}(用法: api <list|get|add|del|test|pull|sync|modify> ...)")
+
+
+def _confirm(prompt: str) -> str:
+    """交互确认(可被测试 monkeypatch)。"""
+    return input(prompt).strip()
+
+
+def _api_list(rest: list[str]) -> None:
+    opts, _ = parse_args(rest)
+    conns = [c for n in list_connections() if (c := get_connection(n)) is not None]
+    filters = opts.get("filter", [])
+    if isinstance(filters, str):
+        filters = [filters]
+    for f in filters:
+        if "=" not in f:
+            print(f"[警告] 忽略非法筛选: {f}(应为 k=v)")
+            continue
+        k, v = f.split("=", 1)
+        conns = [c for c in conns if str(getattr(c, k, "")).startswith(v)]
+    if not conns:
+        print("(无连接)")
+        return
+    if "verbose" in opts:
+        for c in conns:
+            print(f"{c.name}\t{c.base_url}\t{c.model}\t{c.last_tested or '-'}")
+    else:
+        for c in conns:
+            print(f"  {c.name}")
+
+
+def _api_get(rest: list[str]) -> None:
+    _, pos = parse_args(rest)
+    if not pos:
+        print("用法: api get <name>")
+        return
+    conn = get_connection(pos[0])
+    if conn is None:
+        print(f"连接不存在: {pos[0]}")
+        return
+    print(f"name={conn.name}")
+    print(f"base_url={conn.base_url}")
+    print(f"api_key={mask_key(conn.api_key) if conn.api_key else '(空)'}")
+    print(f"model={conn.model}")
+    print(f"timeout={conn.timeout}")
+    print(f"models_endpoint={conn.models_endpoint}")
+    print(f"last_tested={conn.last_tested or '(未测试)'}")
+
+
+def _api_add(rest: list[str]) -> None:
+    opts, pos = parse_args(rest)
+    name = opts.get("name") or (pos[0] if pos else None)
+    url = opts.get("url") or (pos[1] if len(pos) > 1 else None)
+    key = opts.get("key") or (pos[2] if len(pos) > 2 else None)
+    model = opts.get("model") or (pos[3] if len(pos) > 3 else "")
+    if not (name and url and key):
+        print("用法: api add --name <name> --url <base_url> --key <api_key> [--model <model>]")
+        print("  或(弃用) api add <name> <base_url> <api_key> [model]")
+        return
+    if pos:
+        print("[弃用] 位置参数形式将移除,请改用 --name/--url/--key/--model")
+    if get_connection(name) is not None and "modify" not in opts:
+        print(f"连接已存在: {name}(使用 api modify {name} 或 api add --modify ... 覆盖)")
+        return
+    conn = ApiConnection(name=name, base_url=url, api_key=key, model=model)
+    if "pull" in opts:
+        try:
+            models = list_models(conn)
+            print(f"拉取到模型: {', '.join(models)}")
+        except ApiError as exc:
+            print(f"[警告] 拉取模型失败({exc}),仍保存连接(可后续 api pull)")
+    try:
+        save_connection(conn)
+        print(f"已保存连接: {name}")
+    except ValueError as exc:
+        print(f"配置无效: {exc}")
+
+
+def _api_del(rest: list[str]) -> None:
+    opts, pos = parse_args(rest)
+    if not pos:
+        print("用法: api del <name> [-f]")
+        return
+    name = pos[0]
+    if "force" not in opts:
+        ans = _confirm(f"确认删除连接 {name}? [y/N]: ")
+        if ans.lower() not in ("y", "yes"):
+            print("已取消")
+            return
+    if delete_connection(name):
+        print(f"已删除连接: {name}")
+    else:
+        print(f"连接不存在: {name}")
+
+
+def _api_test(rest: list[str]) -> None:
+    opts, pos = parse_args(rest)
+    if not pos:
+        print("用法: api test <name> [--timeout <秒>]")
+        return
+    conn = get_connection(pos[0])
+    if conn is None:
+        print(f"连接不存在: {pos[0]}")
+        return
+    timeout = float(opts.get("timeout", conn.timeout))
+    print(f"正在测试连接: {conn.name} ({conn.base_url})…")
+    try:
+        test_connection(conn, timeout=timeout)
+        conn.last_tested = datetime.now(timezone.utc).isoformat()
+        save_connection(conn)
+        print("连接正常")
+    except ApiError as exc:
+        print(f"测试失败: {exc}")
+
+
+def _api_pull(rest: list[str]) -> None:
+    opts, pos = parse_args(rest)
+    if pos:
+        conn = get_connection(pos[0])
+        if conn is None:
+            print(f"连接不存在: {pos[0]}")
+            return
+    elif "url" in opts and "key" in opts:
+        conn = ApiConnection(name="(临时)", base_url=opts["url"], api_key=opts["key"], model="")
+        try:
+            conn.validate()
+        except ValueError as exc:
+            print(f"URL 无效: {exc}")
+            return
+    else:
+        print("用法: api pull <name> [--set-default] | api pull --url <base_url> --key <api_key> [--timeout <秒>]")
+        return
+    timeout = float(opts.get("timeout", conn.timeout))
+    try:
+        models = list_models(conn, timeout=timeout)
+        for i, m in enumerate(models, 1):
+            print(f"  {i}. {m}")
+        if "set-default" in opts and models and pos:
+            conn.model = models[0]
+            save_connection(conn)
+            print(f"已将默认模型设为: {models[0]}")
+    except ApiError as exc:
+        print(f"拉取失败: {exc}")
+
+
+def _api_sync(rest: list[str]) -> None:
+    opts, pos = parse_args(rest)
+    if not pos:
+        print("用法: api sync <name> [--set-default]")
+        return
+    conn = get_connection(pos[0])
+    if conn is None:
+        print(f"连接不存在: {pos[0]}")
+        return
+    try:
+        test_connection(conn)
+        models = list_models(conn)
+        print("测试通过,模型列表:")
+        for i, m in enumerate(models, 1):
+            print(f"  {i}. {m}")
+        conn.last_tested = datetime.now(timezone.utc).isoformat()
+        if "set-default" in opts and models:
+            conn.model = models[0]
+            print(f"已将默认模型设为: {models[0]}")
+        save_connection(conn)
+    except ApiError as exc:
+        print(f"同步失败: {exc}")
+
+
+def _api_modify(rest: list[str]) -> None:
+    opts, pos = parse_args(rest)
+    if not pos:
+        print("用法: api modify <name> [--set field=value ...]")
+        return
+    conn = get_connection(pos[0])
+    if conn is None:
+        print(f"连接不存在: {pos[0]}")
+        return
+    sets = opts.get("set", [])
+    if isinstance(sets, str):
+        sets = [sets]
+    if sets:
+        _api_modify_set(conn, sets)
+    else:
+        print("交互模式待后续版本实现,请用 --set")
+        # TODO(Task 5): _modify_interactive(conn)
+
+
+def _api_modify_set(conn: ApiConnection, sets: list[str]) -> None:
+    """非交互 --set:先验证全部,再原子更新。"""
+    updates: dict[str, object] = {}
+    for s in sets:
+        if "=" not in s:
+            print(f"非法 --set: {s}(应为 field=value)")
+            return
+        k, v = s.split("=", 1)
+        if k not in ("base_url", "api_key", "model", "timeout", "models_endpoint"):
+            print(f"未知字段: {k}")
+            return
+        updates[k] = v
+    for k, v in updates.items():
+        if k == "base_url" and not (
+            v.startswith("http://") or v.startswith("https://")
+        ):
+            print(f"base_url 无效: {v}")
+            return
+        if k == "timeout":
+            try:
+                float(v)
+            except ValueError:
+                print(f"timeout 无效: {v}")
+                return
+    for k, v in updates.items():
+        setattr(conn, k, float(v) if k == "timeout" else v)
+    save_connection(conn)
+    print(f"已更新连接: {conn.name}")
 
 
 _COMMANDS: dict[str, tuple[str, Callable[[list[str]], None]]] = {
