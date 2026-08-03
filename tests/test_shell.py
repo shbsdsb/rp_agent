@@ -236,6 +236,36 @@ def test_modify_interactive_cancel(monkeypatch, capsys, tmp_path):
     assert conn is not None and conn.model == "m"  # 未修改
 
 
+def test_shell_api_name_dash_m_equals_modify(monkeypatch, capsys, tmp_path):
+    """api <name> -m 等价 api modify <name>(进入交互编辑)。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    monkeypatch.setattr(
+        "rp_agent.shell._prompt_field",
+        lambda _l, _c, _s: ("", "cancel"),
+    )
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api d -m",
+                "api get d",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "已放弃修改" in out  # 进入 modify 交互
+    conn = get_connection("d")
+    assert conn is not None and conn.model == "m"  # 未修改
+
+
+def test_shell_api_unknown_subcommand(capsys):
+    run_shell(_feed(["api foobar", "exit"]))
+    out = capsys.readouterr().out
+    assert "未知子命令" in out
+
+
 def test_shell_help_shows_alias_same_line(capsys):
     run_shell(_feed(["help", "exit"]))
     out = capsys.readouterr().out
