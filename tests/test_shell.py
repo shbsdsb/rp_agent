@@ -181,6 +181,61 @@ def test_shell_api_del_force(capsys, monkeypatch, tmp_path):
     assert "连接不存在" in out
 
 
+def test_modify_interactive_save(monkeypatch, capsys, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    responses = iter(
+        [
+            ("https://new/v1", "normal"),
+            ("newkey", "normal"),
+            ("gpt-5", "save"),
+        ]
+    )
+    monkeypatch.setattr(
+        "rp_agent.shell._prompt_field",
+        lambda _l, _c, _s: next(responses),
+    )
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api modify d",
+                "api get d",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "已保存" in out
+    conn = get_connection("d")
+    assert conn is not None
+    assert conn.base_url == "https://new/v1"
+    assert conn.model == "gpt-5"
+
+
+def test_modify_interactive_cancel(monkeypatch, capsys, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    monkeypatch.setattr(
+        "rp_agent.shell._prompt_field",
+        lambda _l, _c, _s: ("", "cancel"),
+    )
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api modify d",
+                "api get d",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "已放弃修改" in out
+    conn = get_connection("d")
+    assert conn is not None and conn.model == "m"  # 未修改
+
+
 def test_shell_help_shows_alias_same_line(capsys):
     run_shell(_feed(["help", "exit"]))
     out = capsys.readouterr().out

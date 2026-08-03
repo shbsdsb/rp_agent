@@ -8,6 +8,7 @@ from typing import Callable
 from datetime import datetime, timezone
 
 from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.shortcuts import prompt as pt_prompt
 from prompt_toolkit.styles import Style
@@ -322,8 +323,81 @@ def _api_modify(rest: list[str]) -> None:
     if sets:
         _api_modify_set(conn, sets)
     else:
-        print("交互模式待后续版本实现,请用 --set")
-        # TODO(Task 5): _modify_interactive(conn)
+        _modify_interactive(conn)
+
+
+def _prompt_field(label: str, current: str, secret: bool) -> tuple[str, str]:
+    """询问一个字段。返回 (text, action):action ∈ normal/save/cancel。"""
+    from prompt_toolkit.shortcuts import prompt as pt_prompt
+
+    kb = KeyBindings()
+    state: dict[str, str] = {"action": "normal"}
+
+    @kb.add("c-o")
+    def _on_save(event):
+        state["action"] = "save"
+        event.app.exit(result=event.current_buffer.text)
+
+    @kb.add("c-x")
+    def _on_cancel(event):
+        state["action"] = "cancel"
+        event.app.exit(result=event.current_buffer.text)
+
+    shown = mask_key(current) if secret and current else current
+    try:
+        text = pt_prompt(
+            f"{label} (回车保留: {shown}): ",
+            is_password=secret,
+            key_bindings=kb,
+            bottom_toolbar="^O 保存   ^X 放弃   /url /key /model 跳转字段",
+        )
+    except KeyboardInterrupt:
+        return "", "cancel"
+    return text, state["action"]
+
+
+def _modify_interactive(conn: ApiConnection) -> None:
+    """交互式编辑:nano 风格(Ctrl+O 保存 / Ctrl+X 放弃)+ 字段跳转。"""
+    fields = [
+        ("base_url", "Base URL", False),
+        ("api_key", "API Key", True),
+        ("model", "Model", False),
+    ]
+    values: dict[str, str] = {
+        "base_url": conn.base_url,
+        "api_key": conn.api_key,
+        "model": conn.model,
+    }
+    current = 0
+    while True:
+        field, label, secret = fields[current]
+        text, action = _prompt_field(label, values[field], secret)
+        if action == "cancel":
+            print("已放弃修改")
+            return
+        if text.startswith("/"):
+            target = text[1:].lower()
+            names = {f[0]: i for i, f in enumerate(fields)}
+            if target in names:
+                current = names[target]
+                continue
+            print(f"未知字段: {target}(可用: /url /key /model)")
+            continue
+        if text == "":
+            text = values[field]  # 回车保留原值
+        if field == "base_url" and not (
+            text.startswith("http://") or text.startswith("https://")
+        ):
+            print("Base URL 无效,需以 http(s):// 开头")
+            continue
+        values[field] = text
+        if action == "save":
+            for k, v in values.items():
+                setattr(conn, k, v)
+            save_connection(conn)
+            print("已保存")
+            return
+        current = (current + 1) % len(fields)
 
 
 def _api_modify_set(conn: ApiConnection, sets: list[str]) -> None:
