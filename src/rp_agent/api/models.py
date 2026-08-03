@@ -27,8 +27,6 @@ class ApiConnection:
             raise ValueError(
                 f"base_url 必须以 http:// 或 https:// 开头: {self.base_url}"
             )
-        if not self.model:
-            raise ValueError("模型名不能为空")
         if self.timeout <= 0:
             raise ValueError(f"timeout 必须为正数: {self.timeout}")
 

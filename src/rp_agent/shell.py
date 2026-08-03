@@ -13,7 +13,7 @@ from prompt_toolkit.lexers import Lexer
 from prompt_toolkit.shortcuts import prompt as pt_prompt
 from prompt_toolkit.styles import Style
 
-from rp_agent.api.args import parse_args
+from rp_agent.api.args import KNOWN_OPTIONS, parse_args
 from rp_agent.api.client import ApiError, list_models, test_connection
 from rp_agent.api.models import ApiConnection, mask_key
 from rp_agent.api.store import (
@@ -213,6 +213,8 @@ def _api_add(rest: list[str]) -> None:
     try:
         save_connection(conn)
         print(f"已保存连接: {name}")
+        if not model:
+            print("提示: 未设置默认模型,可用 api modify 设置")
     except ValueError as exc:
         print(f"配置无效: {exc}")
 
@@ -452,8 +454,8 @@ _COMMAND_ARGS: dict[str, set[str]] = {
     "?": _KNOWN_COMMANDS,
 }
 
-# 有效选项(--长选项 / -短选项,灰色)
-_VALID_OPTIONS: set[str] = {"--help", "-h"}
+# 有效选项(--长选项 / -短选项,灰色):全部已知选项(与 args.py 同步)
+_VALID_OPTIONS: set[str] = KNOWN_OPTIONS
 
 SHELL_STYLE = Style.from_dict(
     {

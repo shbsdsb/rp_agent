@@ -44,6 +44,11 @@ def test_short_option_is_gray():
     assert _tokens("config -h")[2] == ("class:opt", "-h")
 
 
+def test_new_long_option_is_gray():
+    # --name 等新增 api 选项也应为灰色(tokens: api/add/--name/d)
+    assert _tokens("api add --name d")[4] == ("class:opt", "--name")
+
+
 def test_invalid_option_stays_default():
     assert _tokens("config --wat")[2] == ("class:default", "--wat")
 

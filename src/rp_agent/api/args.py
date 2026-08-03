@@ -11,6 +11,9 @@ _VALUE_OPTS = {"--name", "--url", "--key", "--model", "--timeout"}
 _LIST_OPTS = {"--filter", "--set"}
 _FLAG_OPTS = {"--verbose", "--force", "--modify", "--pull", "--set-default"}
 
+# 全部已知选项(供 shell 着色判定)
+KNOWN_OPTIONS: set[str] = _VALUE_OPTS | _LIST_OPTS | _FLAG_OPTS | {"--help", "-h"}
+
 
 def parse_args(argv: list[str]) -> tuple[dict[str, object], list[str]]:
     """解析 --key value / --flag / 短选项 / 位置参数。

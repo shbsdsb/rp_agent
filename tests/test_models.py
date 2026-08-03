@@ -24,11 +24,15 @@ def test_validate_ok():
 
 @pytest.mark.parametrize(
     "overrides",
-    [{"name": ""}, {"base_url": "ftp://x"}, {"model": ""}, {"timeout": 0}],
+    [{"name": ""}, {"base_url": "ftp://x"}, {"timeout": 0}],
 )
 def test_validate_invalid(overrides):
     with pytest.raises(ValueError):
         _conn(**overrides).validate()
+
+
+def test_validate_allows_empty_model():
+    _conn(model="").validate()  # model 可选,允许为空
 
 
 def test_new_fields_defaults():
