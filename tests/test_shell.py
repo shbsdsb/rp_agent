@@ -44,7 +44,7 @@ def test_run_shell_eof(capsys):
 def test_help_lists_commands(capsys):
     run_shell(_feed(["help", "exit"]))
     out = capsys.readouterr().out
-    for name in ("help", "config", "reload", "storage", "hello", "history", "exit"):
+    for name in ("help", "config", "reload", "storage", "hello", "history", "exit", "chat", "rp", "agent"):
         assert name in out
 
 
@@ -311,3 +311,80 @@ def test_shell_output_no_ansi_in_capsys(capsys):
     run_shell(_feed(["help", "exit"]))
     out = capsys.readouterr().out
     assert "\033" not in out  # capsys 非 tty,颜色关闭
+
+
+def test_shell_home_prompt_prefix():
+    prompts: list[str] = []
+
+    def _inner(p: str) -> str:
+        prompts.append(p)
+        return "exit"
+
+    run_shell(_inner)
+    assert prompts[0] == "home> "
+
+
+def test_shell_switch_to_chat_mode(capsys):
+    prompts: list[str] = []
+    seq = iter(["chat", "你好呀", "/exit", "exit"])
+
+    def _inner(p: str) -> str:
+        prompts.append(p)
+        try:
+            return next(seq)
+        except StopIteration:
+            raise EOFError from None
+
+    run_shell(_inner)
+    out = capsys.readouterr().out
+    assert "chat> " in prompts              # 前缀切换为 chat>
+    assert "[chat] 对话功能尚未实现" in out    # 普通输入 → 灰色占位报错
+    assert "home> " in prompts              # /exit 回到 home
+
+
+def test_shell_mode_switch_among_modes(capsys):
+    prompts: list[str] = []
+    seq = iter(["chat", "/rp", "/agent", "/exit", "exit"])
+
+    def _inner(p: str) -> str:
+        prompts.append(p)
+        try:
+            return next(seq)
+        except StopIteration:
+            raise EOFError from None
+
+    run_shell(_inner)
+    assert "chat> " in prompts
+    assert "rp> " in prompts
+    assert "agent> " in prompts
+
+
+def test_shell_escape_api_in_chat_mode(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(_feed(["chat", "/api list", "/exit", "exit"]))
+    out = capsys.readouterr().out
+    assert "(无连接)" in out  # /api list 在 chat 模式可正常执行
+
+
+def test_shell_exit_in_mode_is_placeholder(capsys):
+    run_shell(_feed(["chat", "exit", "/exit", "exit"]))
+    out = capsys.readouterr().out
+    assert "[chat] 对话功能尚未实现" in out  # 模式内 exit 视为对话内容
+    exits = [l for l in out.splitlines() if l == "退出"]
+    assert len(exits) == 1  # 仅最终 home 模式 exit 退出
+
+
+def test_shell_initial_mode_agent(capsys):
+    prompts: list[str] = []
+    seq = iter(["hello", "/exit", "exit"])
+
+    def _inner(p: str) -> str:
+        prompts.append(p)
+        try:
+            return next(seq)
+        except StopIteration:
+            raise EOFError from None
+
+    run_shell(_inner, initial_mode="agent")
+    assert prompts[0] == "agent> "  # 从 agent 模式启动

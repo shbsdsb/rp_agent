@@ -26,3 +26,8 @@ def test_find_entry_by_command_and_alias():
     assert find_entry("?") is not None
     assert find_entry("quit") is not None
     assert find_entry("nope") is None
+
+
+def test_mode_entries_exist():
+    for name in ("chat", "rp", "agent"):
+        assert find_entry(name) is not None

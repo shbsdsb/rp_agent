@@ -47,7 +47,7 @@ HELP_ENTRIES: list[dict[str, object]] = [
     {
         "command": "exit",
         "aliases": ["quit"],
-        "desc": "退出 shell",
+        "desc": "退出 shell(home 模式);chat/rp/agent 模式内 /exit 返回 home",
         "usage": "exit",
         "params": [],
     },
@@ -67,6 +67,27 @@ HELP_ENTRIES: list[dict[str, object]] = [
             ("modify <name> [--set field=value ...]", "交互或非交互修改"),
             ("<name> -m [--set field=value ...]", "等效 api modify <name>(含 --set)"),
         ],
+    },
+    {
+        "command": "chat",
+        "aliases": [],
+        "desc": "进入 AI 聊天模式(占位)",
+        "usage": "chat",
+        "params": [],
+    },
+    {
+        "command": "rp",
+        "aliases": [],
+        "desc": "进入角色扮演模式(占位)",
+        "usage": "rp",
+        "params": [],
+    },
+    {
+        "command": "agent",
+        "aliases": [],
+        "desc": "进入 agent 模式(占位)",
+        "usage": "agent",
+        "params": [],
     },
 ]
 

@@ -70,3 +70,8 @@ def test_unknown_first_word_is_default():
 
 def test_trailing_space_preserved():
     assert _tokens("config ")[1] == ("class:space", " ")
+
+
+def test_mode_commands_are_cmd():
+    for name in ("chat", "rp", "agent"):
+        assert _tokens(name) == [("class:cmd", name)]

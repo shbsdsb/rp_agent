@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Callable
+from typing import Callable, Literal
 
 from datetime import datetime, timezone
 
@@ -29,9 +29,18 @@ from rp_agent.term import blue, gray, yellow
 
 logger = logging.getLogger("rp_agent")
 
-PROMPT = "home> "
-_BANNER = "rp-agent 交互式 shell —— 输入 help 查看可用命令,exit 退出"
+Mode = Literal["home", "chat", "rp", "agent"]
+_MODE_COMMANDS: dict[str, Mode] = {"chat": "chat", "rp": "rp", "agent": "agent"}
+_BANNER = "rp-agent 交互式 shell —— 输入 help 查看可用命令;chat/rp/agent 进入 AI 工作模式,模式内 / 转义调用命令,/exit 返回 home,exit 退出"
 _history: list[str] = []
+
+
+def _prompt_for_mode(mode: Mode) -> str:
+    return {"home": "home> ", "chat": "chat> ", "rp": "rp> ", "agent": "agent> "}[mode]
+
+
+def _placeholder_msg(mode: Mode) -> str:
+    return f"[{mode}] 对话功能尚未实现(占位模式),/exit 返回 home"
 
 
 def parse_line(line: str) -> tuple[str, list[str]]:
@@ -449,9 +458,9 @@ _COMMANDS: dict[str, tuple[str, Callable[[list[str]], None]]] = {
     "api": ("API 连接管理(api list/get/add/del/test)", _cmd_api),
 }
 
-_KNOWN_COMMANDS: set[str] = set(_COMMANDS) | {
-    a for e in HELP_ENTRIES for a in e["aliases"]
-}
+_KNOWN_COMMANDS: set[str] = (
+    set(_COMMANDS) | {a for e in HELP_ENTRIES for a in e["aliases"]} | set(_MODE_COMMANDS)
+)
 
 # 每个命令的合法参数(仅这些词着色为"有效参数")
 _COMMAND_ARGS: dict[str, set[str]] = {
@@ -522,30 +531,55 @@ def _read_line(prompt: str) -> str:
     return input(prompt)
 
 
-def run_shell(_input: Callable[[str], str] = _read_line) -> None:
-    """交互式主循环。_input 可注入(测试用);Ctrl+C/Ctrl+D 正常退出。"""
+def run_shell(
+    _input: Callable[[str], str] = _read_line, initial_mode: Mode = "home"
+) -> None:
+    """交互式主循环。_input 可注入(测试用);Ctrl+C/Ctrl+D 正常退出。
+
+    模式:home 为默认;chat/rp/agent 为 AI 工作模式(占位)。
+    非 home 模式下,非 / 开头的输入视为对话内容(占位阶段打印灰色报错);
+    / 开头的输入剥掉 / 后走正常命令分派,其中 /exit 返回 home(home 模式 /exit 退出 shell)。
+    """
     _history.clear()
+    mode = initial_mode
     print(_BANNER)
     while True:
         try:
-            line = _input(PROMPT)
+            line = _input(_prompt_for_mode(mode))
         except (EOFError, KeyboardInterrupt):
             print("退出")
             return
         cmd, args = parse_line(line)
         if not cmd:
             continue
-        if cmd in ("exit", "quit"):
-            print("退出")
-            return
         if line.strip() not in _history:
             _history.append(line.strip())
-        entry = _COMMANDS.get(cmd)
-        if entry is None:
-            print(f"未知命令: {cmd}(输入 help 查看可用命令)")
+        escaped = cmd.startswith("/")
+        if escaped:
+            cmd = cmd[1:]
+        if not cmd:
+            continue
+        if cmd in ("exit", "quit"):
+            if escaped and mode != "home":
+                mode = "home"
+                continue
+            if mode == "home":
+                print("退出")
+                return
+            print(gray(_placeholder_msg(mode)))
+            continue
+        if mode != "home" and not escaped:
+            print(gray(_placeholder_msg(mode)))
             continue
         if args == ["--help"]:
             _print_command_help(cmd)
+            continue
+        if cmd in _MODE_COMMANDS:
+            mode = _MODE_COMMANDS[cmd]
+            continue
+        entry = _COMMANDS.get(cmd)
+        if entry is None:
+            print(f"未知命令: {cmd}(输入 help 查看可用命令)")
             continue
         try:
             entry[1](args)
