@@ -53,3 +53,27 @@ def test_shell_command_registered(monkeypatch):
     result = runner.invoke(app, ["shell"])
     assert result.exit_code == 0
     assert called.get("ok") is True
+
+
+def test_chat_command_registered(monkeypatch):
+    called: dict = {}
+    monkeypatch.setattr("rp_agent.core.chat.run", lambda: called.update(ok=True))
+    result = runner.invoke(app, ["chat"])
+    assert result.exit_code == 0
+    assert called.get("ok") is True
+
+
+def test_rp_command_registered(monkeypatch):
+    called: dict = {}
+    monkeypatch.setattr("rp_agent.core.rp.run", lambda: called.update(ok=True))
+    result = runner.invoke(app, ["rp"])
+    assert result.exit_code == 0
+    assert called.get("ok") is True
+
+
+def test_agent_command_registered(monkeypatch):
+    called: dict = {}
+    monkeypatch.setattr("rp_agent.core.agent.run", lambda: called.update(ok=True))
+    result = runner.invoke(app, ["agent"])
+    assert result.exit_code == 0
+    assert called.get("ok") is True

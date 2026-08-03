@@ -119,3 +119,27 @@ def shell() -> None:
     from rp_agent.shell import run_shell
 
     run_shell()
+
+
+@app.command()
+def chat() -> None:
+    """进入 AI 聊天模式(占位,未来接入 client.chat)。"""
+    from rp_agent.core.chat import run
+
+    run()
+
+
+@app.command()
+def rp() -> None:
+    """进入角色扮演模式(占位)。"""
+    from rp_agent.core.rp import run
+
+    run()
+
+
+@app.command()
+def agent() -> None:
+    """进入 agent 模式(占位)。"""
+    from rp_agent.core.agent import run
+
+    run()
