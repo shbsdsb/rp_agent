@@ -71,9 +71,11 @@ def send_message(s: session_store.ChatSession, text: str) -> None:
     if sp:
         messages.append({"role": "system", "content": sp})
     messages.extend(dict(m) for m in s.messages)
+    from rp_agent.config import get_config
+
     try:
         with _spinner():
-            reply = chat(conn, messages)
+            reply = chat(conn, messages, timeout=get_config().timeout)
     except ApiError as exc:
         print(f"API 错误: {exc}")
         return

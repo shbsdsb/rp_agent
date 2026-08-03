@@ -103,6 +103,22 @@ def test_send_message_without_system_prompt(monkeypatch, tmp_path, capsys):
     assert captured["messages"][-1] == {"role": "user", "content": "hi"}
 
 
+def test_send_message_uses_global_timeout(monkeypatch, tmp_path, capsys):
+    _setup(monkeypatch, tmp_path)
+    captured: dict = {}
+
+    def fake_chat(conn, messages, **kw):
+        captured["kwargs"] = kw
+        return "ok"
+
+    monkeypatch.setattr("rp_agent.core.chat.chat", fake_chat)
+    s = create_session(connection="demo")
+    send_message(s, "hi")
+    from rp_agent.config import get_config
+
+    assert captured["kwargs"].get("timeout") == get_config().timeout
+
+
 def test_set_connection_updates_and_saves(monkeypatch, tmp_path, capsys):
     _setup(monkeypatch, tmp_path)
     s = create_session()

@@ -404,6 +404,24 @@ def test_shell_initial_mode_agent(capsys):
     assert prompts[0] == "agent> "  # 从 agent 模式启动
 
 
+def test_config_shows_timeout(capsys):
+    run_shell(_feed(["config", "exit"]))
+    out = capsys.readouterr().out
+    assert "timeout" in out
+
+
+def test_config_set_timeout(monkeypatch, tmp_path, capsys):
+    import json
+
+    p = tmp_path / "app.json"
+    p.write_text(json.dumps({"log_level": "INFO", "timeout": 300}), encoding="utf-8")
+    monkeypatch.setattr("rp_agent.config.DEFAULT_CONFIG_PATH", p)
+    run_shell(_feed(["config timeout 500", "config", "exit"]))
+    out = capsys.readouterr().out
+    assert "已设置全局超时" in out
+    assert "timeout=500.0s" in out
+
+
 def test_shell_chat_message_sends(monkeypatch, tmp_path, capsys):
     """chat 模式普通输入调用 send_message(替换占位报错)。"""
     monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)

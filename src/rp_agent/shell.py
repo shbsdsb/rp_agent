@@ -61,9 +61,28 @@ def parse_line(line: str) -> tuple[str, list[str]]:
     return parts[0], parts[1:]
 
 
-def _cmd_config(_args: list[str]) -> None:
+def _cmd_config(args: list[str]) -> None:
+    if args and args[0] == "timeout":
+        if len(args) < 2:
+            print("用法: config timeout <秒>")
+            return
+        try:
+            secs = float(args[1])
+        except ValueError:
+            print(f"非法超时: {args[1]}")
+            return
+        if secs <= 0:
+            print("超时必须为正数")
+            return
+        from rp_agent.config import save_config
+
+        save_config({"timeout": secs})
+        reload_config()
+        print(f"已设置全局超时: {secs}s")
+        return
     cfg = get_config()
     print(f"log_level={cfg.log_level}")
+    print(f"timeout={cfg.timeout}s")
 
 
 def _cmd_reload(_args: list[str]) -> None:
@@ -308,7 +327,7 @@ def _api_test(rest: list[str]) -> None:
     if conn is None:
         print(f"连接不存在: {pos[0]}")
         return
-    timeout = float(opts.get("timeout", conn.timeout))
+    timeout = float(opts.get("timeout", get_config().timeout))
     print(f"正在测试连接: {conn.name} ({conn.base_url})…")
     try:
         test_connection(conn, timeout=timeout)
@@ -336,7 +355,7 @@ def _api_pull(rest: list[str]) -> None:
     else:
         print("用法: api pull <name> [--set-default] | api pull --url <base_url> --key <api_key> [--timeout <秒>]")
         return
-    timeout = float(opts.get("timeout", conn.timeout))
+    timeout = float(opts.get("timeout", get_config().timeout))
     try:
         models = list_models(conn, timeout=timeout)
         for i, m in enumerate(models, 1):
@@ -358,6 +377,7 @@ def _api_sync(rest: list[str]) -> None:
     if conn is None:
         print(f"连接不存在: {pos[0]}")
         return
+    timeout = float(opts.get("timeout", get_config().timeout))
     try:
         test_connection(conn)
         models = list_models(conn)
