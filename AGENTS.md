@@ -38,6 +38,7 @@ uv add <pkg>            # 添加依赖(必须用 uv,禁止 pip/venv)
 - 测试驱动:新增功能先写 pytest 测试(用 `uv run pytest <file> -v` 验证失败再实现)
 - 新工具类继承 `tools/base/tool.py` 的 `BaseTool`(name/description 类属性 + `run(**kwargs) -> str`)
 - Git:开发在 `feat/*` 或 `fix/*` 分支,小步提交,完成后合并到 `main`;不直接提交到 main
+- 分支收尾:不询问用户(不用 ask),直接合并到 main、复验测试、删除 feat 分支(用户测试后可能需要更大输入框,避免 ask 弹窗干扰)
 - Windows 注意:cmd/powershell 按系统代码页解析 bat,启动脚本内保持 ASCII 消息;路径尾部反斜杠与引号组合会转义(用 `%~dp0.` 规避)
 
 ## Notes
