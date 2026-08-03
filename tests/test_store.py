@@ -49,6 +49,12 @@ def test_default_connection_missing_name_returns_none(monkeypatch, tmp_path):
     assert get_default_connection() is None
 
 
+def test_get_connection_empty_name_returns_none(monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    assert get_connection("") is None
+
+
 def test_get_missing_returns_none(monkeypatch, tmp_path):
     monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
     monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")

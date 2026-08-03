@@ -458,3 +458,12 @@ def test_shell_api_set_chat_only(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr().out
     assert "仅可在对话模式内使用" in out  # home 被拒
     assert "已切换会话连接" in out        # chat 模式(/api set)可用
+
+
+def test_shell_reenter_chat_creates_new_session(monkeypatch, tmp_path, capsys):
+    """每次进入 chat 模式都新建会话(不复用旧会话,以便拿到最新默认连接)。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(_feed(["chat", "/exit", "chat", "/exit", "exit"]))
+    out = capsys.readouterr().out
+    assert out.count("新会话") == 2  # 两次进入各新建一次

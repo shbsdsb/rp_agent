@@ -636,7 +636,8 @@ def run_shell(
             continue
         if cmd in _MODE_COMMANDS:
             mode = _MODE_COMMANDS[cmd]
-            if mode == "chat" and _chat_session is None:
+            if mode == "chat":
+                # 每次进入 chat 都新建会话(用当前默认连接),不复用旧会话
                 _chat_session = _chat_business("new_session")()
             continue
         if mode != "home" and cmd in _CHAT_COMMANDS:

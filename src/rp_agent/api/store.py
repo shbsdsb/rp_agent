@@ -22,6 +22,8 @@ def list_connections() -> list[str]:
 
 
 def get_connection(name: str) -> ApiConnection | None:
+    if not name:
+        return None  # 空名直接返回,避免拼出 api/.json 触发文件读取告警
     ensure_dirs()
     data = json_read(_conn_path(name))
     if not isinstance(data, dict):
