@@ -2,8 +2,10 @@ from rp_agent.api.models import ApiConnection
 from rp_agent.api.store import (
     delete_connection,
     get_connection,
+    get_default_connection,
     list_connections,
     save_connection,
+    set_default_connection,
 )
 
 
@@ -26,6 +28,25 @@ def test_save_get_list_delete_roundtrip(monkeypatch, tmp_path):
     assert get_connection("demo") is None
     assert delete_connection("demo") is False
     assert list_connections() == []
+
+
+def test_default_connection_roundtrip(monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    conn = ApiConnection(name="d", base_url="https://x/v1", api_key="k", model="m")
+    save_connection(conn)
+    assert get_default_connection() is None
+    set_default_connection("d")
+    loaded = get_default_connection()
+    assert loaded is not None and loaded.name == "d"
+    set_default_connection("d")  # 覆盖写幂等
+    assert get_default_connection() is not None
+
+
+def test_default_connection_missing_name_returns_none(monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    assert get_default_connection() is None
 
 
 def test_get_missing_returns_none(monkeypatch, tmp_path):

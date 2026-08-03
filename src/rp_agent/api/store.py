@@ -68,3 +68,22 @@ def delete_connection(name: str) -> bool:
     except OSError as exc:
         logger.error("删除连接失败(%s): %s", name, exc)
         return False
+
+
+def _default_conn_path() -> Path:
+    # data 根,避免与 API_DIR.glob("*.json") 的 list_connections 冲突
+    return safe_path("default_connection.json")
+
+
+def get_default_connection() -> ApiConnection | None:
+    ensure_dirs()
+    data = json_read(_default_conn_path())
+    if not isinstance(data, dict):
+        return None
+    name = str(data.get("name", ""))
+    return get_connection(name) if name else None
+
+
+def set_default_connection(name: str) -> None:
+    ensure_dirs()
+    json_write(_default_conn_path(), {"name": name})
