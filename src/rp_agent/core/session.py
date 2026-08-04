@@ -16,6 +16,7 @@ class ChatSession:
     created_at: str
     updated_at: str
     connection: str = ""            # ApiConnection.name,可为空
+    name: str = ""                  # 可读名称,默认空(= 显示 id)
     messages: list[dict] = field(default_factory=list)
 
 
@@ -45,6 +46,7 @@ def save_session(session: ChatSession) -> None:
             "created_at": session.created_at,
             "updated_at": session.updated_at,
             "connection": session.connection,
+            "name": session.name,
             "messages": session.messages,
         },
     )
@@ -60,6 +62,7 @@ def load_session(session_id: str) -> ChatSession | None:
             created_at=str(data.get("created_at", "")),
             updated_at=str(data.get("updated_at", "")),
             connection=str(data.get("connection", "")),
+            name=str(data.get("name", "")),
             messages=list(data.get("messages", [])),
         )
     except (KeyError, TypeError, ValueError):

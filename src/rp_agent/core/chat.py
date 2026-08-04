@@ -114,6 +114,67 @@ def set_connection(s: session_store.ChatSession, name: str) -> None:
     print(f"已切换会话连接: {name}")
 
 
+def _display_key(s: session_store.ChatSession) -> str:
+    return s.name or s.id
+
+
+def find_session(key: str) -> session_store.ChatSession | None:
+    """按 id 精确,或按 name 匹配;找不到返回 None。"""
+    key = key.strip()
+    sessions = session_store.list_sessions()
+    for s in sessions:
+        if s.id == key:
+            return s
+    matches = [s for s in sessions if s.name == key]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        print(f"名称 {key} 对应多个会话,请改用 id(chat list 查看)")
+    return None
+
+
+def get_session(key: str) -> None:
+    s = find_session(key)
+    if s is None:
+        print(f"会话不存在: {key}")
+        return
+    print(f"会话: {_display_key(s)} | id: {s.id}")
+    print(f"连接: {s.connection or '(未设置)'} | 消息数: {len(s.messages)}")
+    for i, m in enumerate(s.messages, 1):
+        print(f"  [{m.get('role', '?')}] {m.get('content', '')}")
+
+
+def load_into_session(key: str) -> session_store.ChatSession | None:
+    s = find_session(key)
+    if s is None:
+        print(f"会话不存在: {key}")
+        return None
+    print(f"已加载会话: {_display_key(s)}")
+    return s
+
+
+def rename_session(s: session_store.ChatSession, new_name: str) -> None:
+    new_name = new_name.strip()
+    if not new_name:
+        print("名称不能为空")
+        return
+    s.name = new_name
+    session_store.save_session(s)
+    print(f"已重命名: {_display_key(s)}")
+
+
+def rename_by_key(key: str, new_name: str) -> None:
+    s = find_session(key)
+    if s is None:
+        print(f"会话不存在: {key}")
+        return
+    rename_session(s, new_name)
+
+
+def session_names() -> list[str]:
+    return [_display_key(s) for s in session_store.list_sessions()]
+
+
 @contextmanager
 def _spinner(label: str = "正在请求"):
     """点阵 spinner:tty 下后台线程 100ms 推进帧,非 tty 退化为静态一行。"""

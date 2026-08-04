@@ -67,3 +67,27 @@ def test_session_id_is_safe_and_unique(monkeypatch, tmp_path):
     s2 = create_session()
     assert s1.id != s2.id
     assert ".." not in s1.id and "/" not in s1.id and "\\" not in s1.id
+
+
+def test_name_field_roundtrip(monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    s = create_session()
+    s.name = "三体讨论"
+    save_session(s)
+    loaded = load_session(s.id)
+    assert loaded is not None and loaded.name == "三体讨论"
+
+
+def test_load_old_json_without_name(monkeypatch, tmp_path):
+    """旧会话 JSON 无 name 字段 → 加载 name="" 兼容。"""
+    import json
+
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    s = create_session()
+    save_session(s)
+    path = tmp_path / "chats" / f"{s.id}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data.pop("name", None)
+    path.write_text(json.dumps(data), encoding="utf-8")
+    loaded = load_session(s.id)
+    assert loaded is not None and loaded.name == ""

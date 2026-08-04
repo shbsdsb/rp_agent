@@ -151,3 +151,66 @@ def test_list_sessions_prints(monkeypatch, tmp_path, capsys):
     list_sessions()
     out = capsys.readouterr().out
     assert s.id in out
+
+
+def test_find_session_by_id_and_name(monkeypatch, tmp_path):
+    _setup(monkeypatch, tmp_path)
+    s = create_session()
+    s.name = "我的会话"
+    save_session(s)
+    from rp_agent.core.chat import find_session
+
+    assert find_session(s.id).id == s.id
+    assert find_session("我的会话").id == s.id
+    assert find_session("nope") is None
+
+
+def test_rename_session(monkeypatch, tmp_path, capsys):
+    _setup(monkeypatch, tmp_path)
+    from rp_agent.core.chat import rename_session
+
+    s = create_session()
+    save_session(s)
+    rename_session(s, "新名字")
+    assert s.name == "新名字"
+    assert "已重命名" in capsys.readouterr().out
+    from rp_agent.core.session import load_session
+
+    assert load_session(s.id).name == "新名字"
+
+
+def test_rename_session_empty_rejected(monkeypatch, tmp_path, capsys):
+    _setup(monkeypatch, tmp_path)
+    from rp_agent.core.chat import rename_session
+
+    s = create_session()
+    rename_session(s, "   ")
+    assert "名称不能为空" in capsys.readouterr().out
+    assert s.name == ""
+
+
+def test_rename_by_key(monkeypatch, tmp_path, capsys):
+    _setup(monkeypatch, tmp_path)
+    from rp_agent.core.chat import rename_by_key
+
+    s = create_session()
+    save_session(s)
+    rename_by_key(s.id, "重命名后")
+    assert "已重命名" in capsys.readouterr().out
+    from rp_agent.core.session import load_session
+
+    assert load_session(s.id).name == "重命名后"
+
+
+def test_session_names_lists_name_or_id(monkeypatch, tmp_path):
+    _setup(monkeypatch, tmp_path)
+    from rp_agent.core.chat import session_names
+
+    named = create_session()
+    named.name = "甲"
+    save_session(named)
+    unnamed = create_session()
+    save_session(unnamed)
+    names = session_names()
+    assert "甲" in names
+    assert unnamed.id in names  # 未命名显示 id
