@@ -6,7 +6,7 @@ from rp_agent.core.chat import (
     set_connection,
     system_prompt,
 )
-from rp_agent.core.session import create_session, save_session
+from rp_agent.core.session import append_message, create_session, save_session
 
 
 def _setup(monkeypatch, tmp_path):
@@ -162,6 +162,21 @@ def test_list_sessions_shows_name(monkeypatch, tmp_path, capsys):
     list_sessions()
     out = capsys.readouterr().out
     assert "打招呼" in out
+
+
+def test_load_into_session_prints_history(monkeypatch, tmp_path, capsys):
+    """加载会话进入模式后,主动打印历史消息供查看上下文。"""
+    _setup(monkeypatch, tmp_path)
+    from rp_agent.core.chat import load_into_session
+
+    s = create_session(connection="demo")
+    append_message(s, "user", "你好")
+    append_message(s, "assistant", "你好!")
+    save_session(s)
+    load_into_session(s.id)
+    out = capsys.readouterr().out
+    assert "[user] 你好" in out
+    assert "[assistant] 你好!" in out
 
 
 def test_find_session_by_id_and_name(monkeypatch, tmp_path):

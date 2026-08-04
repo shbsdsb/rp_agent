@@ -149,7 +149,9 @@ def load_into_session(key: str) -> session_store.ChatSession | None:
     if s is None:
         print(f"会话不存在: {key}")
         return None
-    print(f"已加载会话: {_display_key(s)}")
+    print(f"已加载会话: {_display_key(s)} | 消息数: {len(s.messages)}")
+    for i, m in enumerate(s.messages, 1):
+        print(f"  [{m.get('role', '?')}] {m.get('content', '')}")
     return s
 
 
