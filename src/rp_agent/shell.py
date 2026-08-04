@@ -7,6 +7,7 @@ from typing import Callable, Literal
 
 from datetime import datetime, timezone
 
+from prompt_toolkit.completion import Completer, WordCompleter
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.lexers import Lexer
@@ -635,6 +636,24 @@ class ShellLexer(Lexer):
         return get_line
 
 
+class ChatRenameCompleter(Completer):
+    """chat rename 后的第一个参数:tab 补全会话名列表(zsh 式菜单)。"""
+
+    def get_completions(self, document, complete_event):
+        text = document.text
+        parts = text.split()
+        # 仅匹配 chat rename <第一个参数位置>
+        if len(parts) < 2 or parts[0] != "chat" or parts[1] != "rename":
+            return
+        if len(parts) > 3 or (len(parts) == 3 and text.endswith(" ")):
+            return  # 已进入第二参数位置,不再补全
+        names = _chat_business("session_names")()
+        if not names:
+            return
+        completer = WordCompleter(names, ignore_case=True)
+        yield from completer.get_completions(document, complete_event)
+
+
 _pt_history = InMemoryHistory()
 
 
@@ -650,6 +669,7 @@ def _read_line(prompt: str) -> str:
             lexer=ShellLexer(),
             style=SHELL_STYLE,
             history=_pt_history,
+            completer=ChatRenameCompleter(),
         )
     return input(prompt)
 
