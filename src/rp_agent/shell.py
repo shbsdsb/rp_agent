@@ -636,17 +636,27 @@ class ShellLexer(Lexer):
         return get_line
 
 
-class ChatRenameCompleter(Completer):
-    """chat rename 后的第一个参数:tab 补全会话名列表(zsh 式菜单)。"""
+class ChatSessionCompleter(Completer):
+    """chat rename/get/load 与模式内 /load 的第一个参数:tab 补全会话名列表(zsh 式菜单)。"""
+
+    # 各命令自身词数(不包含参数):rename/get/load 2 词,/load 1 词
+    _CMD_WORDS = {"chat rename": 2, "chat get": 2, "chat load": 2, "/load": 1}
 
     def get_completions(self, document, complete_event):
         text = document.text
         parts = text.split()
-        # 仅匹配 chat rename <第一个参数位置>
-        if len(parts) < 2 or parts[0] != "chat" or parts[1] != "rename":
+        prefix = ""
+        if parts and parts[0] == "/load":
+            prefix = "/load"
+        elif len(parts) >= 2 and parts[0] == "chat" and parts[1] in ("rename", "get", "load"):
+            prefix = f"chat {parts[1]}"
+        else:
             return
-        if len(parts) > 3 or (len(parts) == 3 and text.endswith(" ")):
-            return  # 已进入第二参数位置,不再补全
+        base = self._CMD_WORDS[prefix]
+        if len(parts) > base + 1:
+            return  # 已输入第二个参数
+        if len(parts) == base + 1 and text.endswith(" "):
+            return  # 第一参已输完且打了空格(准备第二参)
         names = _chat_business("session_names")()
         if not names:
             return
@@ -669,7 +679,7 @@ def _read_line(prompt: str) -> str:
             lexer=ShellLexer(),
             style=SHELL_STYLE,
             history=_pt_history,
-            completer=ChatRenameCompleter(),
+            completer=ChatSessionCompleter(),
         )
     return input(prompt)
 
