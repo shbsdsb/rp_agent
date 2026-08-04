@@ -25,7 +25,6 @@ from rp_agent.api.store import (
 )
 from rp_agent.config import get_config, reload_config
 from rp_agent.help_data import HELP_ENTRIES, find_entry
-from rp_agent.storage import DATA_DIR, ensure_dirs
 from rp_agent.term import blue, gray, yellow
 
 logger = logging.getLogger("rp_agent")
@@ -91,14 +90,6 @@ def _cmd_reload(_args: list[str]) -> None:
     print(f"配置已重载,发生变化: {changed},log_level={cfg.log_level}")
 
 
-def _cmd_storage(_args: list[str]) -> None:
-    ensure_dirs()
-    print(f"data 目录: {DATA_DIR}")
-    for sub in sorted(p for p in DATA_DIR.iterdir() if p.is_dir()):
-        items = sorted(p.name for p in sub.iterdir())
-        print(f"  {sub.name}/: {items}")
-
-
 def _cmd_hello(_args: list[str]) -> None:
     cfg = get_config()
     print(f"你好!rp-agent 骨架已就绪,当前日志级别: {cfg.log_level}")
@@ -138,11 +129,15 @@ def _cmd_help(args: list[str]) -> None:
         _print_command_help(args[0])
         return
     print("可用命令:")
+    names = []
     for e in HELP_ENTRIES:
         name = e["command"]
         if e["aliases"]:
             name += "/" + "/".join(e["aliases"])
-        print(f"  {yellow(name)}\t{e['desc']}")
+        names.append(name)
+    width = max(len(n) for n in names)
+    for e, name in zip(HELP_ENTRIES, names):
+        print(f"  {yellow(name.ljust(width))}  {e['desc']}")
     print("  输入 <命令> --help 查看详细用法")
 
 
@@ -520,7 +515,6 @@ _COMMANDS: dict[str, tuple[str, Callable[[list[str]], None]]] = {
     "?": ("显示帮助", _cmd_help),
     "config": ("显示当前配置", _cmd_config),
     "reload": ("热重载配置", _cmd_reload),
-    "storage": ("列出 data 目录内容", _cmd_storage),
     "hello": ("冒烟命令", _cmd_hello),
     "history": ("显示输入历史", _cmd_history),
     "api": ("API 连接管理(api list/get/add/del/test)", _cmd_api),

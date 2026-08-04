@@ -33,6 +33,18 @@ def test_mode_entries_exist():
         assert find_entry(name) is not None
 
 
+def test_config_entry_explains_fields():
+    entry = find_entry("config")
+    assert entry is not None
+    params_text = " ".join(p for p, _ in entry["params"])
+    assert "log_level" in params_text
+    assert "timeout" in params_text
+
+
+def test_storage_entry_removed():
+    assert find_entry("storage") is None
+
+
 def test_api_entry_mentions_use_set():
     entry = find_entry("api")
     params_text = " ".join(p for p, _ in entry["params"])

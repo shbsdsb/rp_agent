@@ -56,7 +56,7 @@ def test_run_shell_eof(capsys):
 def test_help_lists_commands(capsys):
     run_shell(_feed(["help", "exit"]))
     out = capsys.readouterr().out
-    for name in ("help", "config", "reload", "storage", "hello", "history", "exit", "chat", "rp", "agent"):
+    for name in ("help", "config", "reload", "hello", "history", "exit", "chat", "rp", "agent"):
         assert name in out
 
 
@@ -323,6 +323,19 @@ def test_shell_output_no_ansi_in_capsys(capsys):
     run_shell(_feed(["help", "exit"]))
     out = capsys.readouterr().out
     assert "\033" not in out  # capsys 非 tty,颜色关闭
+
+
+def test_help_overview_desc_aligned(capsys):
+    """help 概览 desc 同一列:不再使用 \t(短/长命令缩进不齐)。"""
+    run_shell(_feed(["help", "exit"]))
+    out = capsys.readouterr().out
+    assert "\t" not in out
+
+
+def test_storage_command_removed(capsys):
+    run_shell(_feed(["storage", "exit"]))
+    out = capsys.readouterr().out
+    assert "未知命令: storage" in out
 
 
 def test_shell_home_prompt_prefix():

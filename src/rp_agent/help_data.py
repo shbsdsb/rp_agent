@@ -12,22 +12,19 @@ HELP_ENTRIES: list[dict[str, object]] = [
     {
         "command": "config",
         "aliases": [],
-        "desc": "显示当前配置",
-        "usage": "config",
-        "params": [],
+        "desc": "显示当前配置(config timeout <秒> 可修改超时)",
+        "usage": "config [timeout <秒>]",
+        "params": [
+            ("log_level", "日志级别:INFO/DEBUG/WARNING/ERROR(env RP_AGENT_LOG_LEVEL 覆盖)"),
+            ("timeout", "全局网络超时(秒),默认 300(env RP_AGENT_TIMEOUT 覆盖)"),
+            ("timeout <秒>", "设置全局超时并写入配置文件"),
+        ],
     },
     {
         "command": "reload",
         "aliases": [],
         "desc": "热重载配置",
         "usage": "reload",
-        "params": [],
-    },
-    {
-        "command": "storage",
-        "aliases": [],
-        "desc": "列出 data 目录内容",
-        "usage": "storage",
         "params": [],
     },
     {
