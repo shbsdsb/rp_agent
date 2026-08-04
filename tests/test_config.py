@@ -5,7 +5,12 @@ def test_default_log_level():
     assert get_config(force_reload=True).log_level == "INFO"
 
 
-def test_default_timeout():
+def test_default_timeout(monkeypatch, tmp_path):
+    import json
+
+    p = tmp_path / "app.json"
+    p.write_text(json.dumps({}), encoding="utf-8")
+    monkeypatch.setattr("rp_agent.config.DEFAULT_CONFIG_PATH", p)
     assert get_config(force_reload=True).timeout == 300.0
 
 

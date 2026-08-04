@@ -491,6 +491,65 @@ def test_shell_api_set_chat_only(monkeypatch, tmp_path, capsys):
     assert "已切换会话连接" in out        # chat 模式(/api set)可用
 
 
+def test_shell_chat_list_command(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(_feed(["chat list", "exit"]))
+    out = capsys.readouterr().out
+    assert "(无历史会话)" in out  # chat list 走子命令而非进入模式
+
+
+def test_shell_chat_rename_two_args(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    from rp_agent.core.session import create_session, save_session
+
+    s = create_session()
+    save_session(s)
+    run_shell(_feed([f"chat rename {s.id} 新名", "exit"]))
+    out = capsys.readouterr().out
+    assert "已重命名" in out
+    from rp_agent.core.session import load_session
+
+    assert load_session(s.id).name == "新名"
+
+
+def test_shell_chat_get_command(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    from rp_agent.core.session import create_session, save_session
+
+    s = create_session()
+    save_session(s)
+    run_shell(_feed([f"chat get {s.id}", "exit"]))
+    assert "消息数" in capsys.readouterr().out
+
+
+def test_shell_chat_load_enters_chat(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    from rp_agent.core.session import create_session, save_session
+
+    s = create_session()
+    save_session(s)
+    run_shell(_feed([f"chat load {s.id}", "exit"]))
+    assert "已加载会话" in capsys.readouterr().out
+
+
+def test_shell_rename_in_chat_mode(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(_feed(["chat", "/rename 新对话", "/exit", "exit"]))
+    assert "已重命名" in capsys.readouterr().out
+
+
+def test_shell_chat_unknown_subcommand(capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(_feed(["chat foobar", "exit"]))
+    assert "未知子命令" in capsys.readouterr().out
+
+
 def test_shell_reenter_chat_creates_new_session(monkeypatch, tmp_path, capsys):
     """每次进入 chat 模式都新建会话(不复用旧会话,以便拿到最新默认连接)。"""
     monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)

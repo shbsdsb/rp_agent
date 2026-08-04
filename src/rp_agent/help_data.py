@@ -70,9 +70,14 @@ HELP_ENTRIES: list[dict[str, object]] = [
     {
         "command": "chat",
         "aliases": [],
-        "desc": "进入 AI 聊天模式(占位)",
-        "usage": "chat",
-        "params": [],
+        "desc": "进入 AI 聊天模式;chat <子命令> 管理会话",
+        "usage": "chat [list|get|load|rename ...]",
+        "params": [
+            ("list", "列出全部会话(id/名称、时间、连接、消息数)"),
+            ("get <id|name>", "查看会话详情(含消息列表)"),
+            ("load <id|name>", "加载会话并进入 chat 模式"),
+            ("rename <旧名> <新名>", "重命名会话;旧名输入时 Tab 可补全选择"),
+        ],
     },
     {
         "command": "rp",

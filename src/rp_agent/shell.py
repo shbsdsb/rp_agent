@@ -37,9 +37,10 @@ def _chat_business(attr: str):
 
 Mode = Literal["home", "chat", "rp", "agent"]
 _MODE_COMMANDS: dict[str, Mode] = {"chat": "chat", "rp": "rp", "agent": "agent"}
-_CHAT_COMMANDS: set[str] = {"new", "list", "load"}
+_CHAT_COMMANDS: set[str] = {"new", "list", "load", "rename"}
 _current_mode: Mode = "home"
 _chat_session = None  # ChatSession | None,运行时赋值(避免循环 import)
+_mode_switch_request: Mode | None = None  # chat load 后请求切换模式
 _BANNER = "rp-agent 交互式 shell —— 输入 help 查看可用命令;chat/rp/agent 进入 AI 工作模式,模式内 / 转义调用命令,/exit 返回 home,exit 退出"
 _history: list[str] = []
 
@@ -217,6 +218,54 @@ def _api_set(rest: list[str]) -> None:
         print("当前无会话,请先 /new 或 /load")
         return
     _chat_business("set_connection")(_chat_session, name)
+
+
+def _cmd_chat(args: list[str]) -> None:
+    if not args:
+        print(f"用法: {_colorize_usage('chat <list|get|load|rename> ...')}")
+        return
+    _dispatch_chat(args[0], args[1:])
+
+
+def _dispatch_chat(sub: str, rest: list[str]) -> None:
+    if sub == "list":
+        _chat_business("list_sessions")()
+    elif sub == "get":
+        if not rest:
+            print("用法: chat get <id|name>")
+            return
+        _chat_business("get_session")(rest[0])
+    elif sub == "load":
+        if not rest:
+            print("用法: chat load <id|name>")
+            return
+        _chat_load(rest[0])
+    elif sub == "rename":
+        _chat_rename(rest)
+    else:
+        print(f"未知子命令: {sub}(用法: chat <list|get|load|rename> ...)")
+
+
+def _chat_load(key: str) -> None:
+    global _chat_session, _mode_switch_request
+    loaded = _chat_business("load_into_session")(key)
+    if loaded is not None:
+        _chat_session = loaded
+        _mode_switch_request = "chat"
+
+
+def _chat_rename(rest: list[str]) -> None:
+    if len(rest) == 2:
+        _chat_business("rename_by_key")(rest[0], rest[1])
+    elif len(rest) == 1:
+        # 交互:第二行输入新名
+        new_name = _read_line(f"新名称({rest[0]}): ").strip()
+        if not new_name:
+            print("已取消")
+            return
+        _chat_business("rename_by_key")(rest[0], new_name)
+    else:
+        print("用法: chat rename <旧名> <新名>(旧名输入时可按 Tab 补全选择)")
 
 
 def _confirm(prompt: str) -> str:
@@ -518,6 +567,7 @@ _COMMANDS: dict[str, tuple[str, Callable[[list[str]], None]]] = {
     "hello": ("冒烟命令", _cmd_hello),
     "history": ("显示输入历史", _cmd_history),
     "api": ("API 连接管理(api list/get/add/del/test)", _cmd_api),
+    "chat": ("会话管理(chat list/get/load/rename)", _cmd_chat),
 }
 
 _KNOWN_COMMANDS: set[str] = (
@@ -531,6 +581,7 @@ _KNOWN_COMMANDS: set[str] = (
 # 每个命令的合法参数(仅这些词着色为"有效参数")
 _COMMAND_ARGS: dict[str, set[str]] = {
     "api": {"list", "get", "add", "del", "test", "pull", "sync", "modify", "use", "set"},
+    "chat": {"list", "get", "load", "rename"},
     "help": _KNOWN_COMMANDS,
     "?": _KNOWN_COMMANDS,
 }
@@ -612,12 +663,15 @@ def run_shell(
     非 home 模式下,非 / 开头的输入在 chat 模式视为对话消息,其余模式打印占位报错;
     / 开头的输入剥掉 / 后走正常命令分派,其中 /exit 返回 home(home 模式 /exit 退出 shell)。
     """
-    global _current_mode, _chat_session
+    global _current_mode, _chat_session, _mode_switch_request
     _history.clear()
     mode = initial_mode
     print(_BANNER)
     while True:
         _current_mode = mode
+        if _mode_switch_request is not None:
+            mode = _mode_switch_request
+            _mode_switch_request = None
         try:
             line = _input(_prompt_for_mode(mode))
         except (EOFError, KeyboardInterrupt):
@@ -653,7 +707,7 @@ def run_shell(
         if args == ["--help"]:
             _print_command_help(cmd)
             continue
-        if cmd in _MODE_COMMANDS:
+        if cmd in _MODE_COMMANDS and (cmd != "chat" or not args):
             mode = _MODE_COMMANDS[cmd]
             if mode == "chat":
                 # 每次进入 chat 都新建会话(用当前默认连接),不复用旧会话
@@ -666,11 +720,14 @@ def run_shell(
                 _chat_business("list_sessions")()
             elif cmd == "load":
                 if args:
-                    loaded = _chat_business("load_session")(args[0])
-                    if loaded is not None:
-                        _chat_session = loaded
+                    _chat_load(args[0])
                 else:
-                    print("用法: /load <会话id>(用 /list 查看)")
+                    print("用法: /load <会话id|name>(用 /list 查看)")
+            elif cmd == "rename":
+                if args:
+                    _chat_business("rename_session")(_chat_session, args[0])
+                else:
+                    print("用法: /rename <新名称>")
             continue
         entry = _COMMANDS.get(cmd)
         if entry is None:

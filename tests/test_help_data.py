@@ -50,3 +50,10 @@ def test_api_entry_mentions_use_set():
     params_text = " ".join(p for p, _ in entry["params"])
     assert "use <name>" in params_text
     assert "set <name>" in params_text
+
+
+def test_chat_entry_explains_subcommands():
+    entry = find_entry("chat")
+    params_text = " ".join(p for p, _ in entry["params"])
+    for sub in ("list", "get", "load", "rename"):
+        assert sub in params_text

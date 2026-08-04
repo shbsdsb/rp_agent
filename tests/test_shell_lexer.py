@@ -104,3 +104,9 @@ def test_api_use_set_are_valid_params():
 def test_chat_session_commands_are_cmd():
     for name in ("new", "list", "load"):
         assert _tokens(f"/{name}") == [("class:cmd", f"/{name}")]
+
+
+def test_chat_subcommands_are_valid_params():
+    for sub in ("list", "get", "load", "rename"):
+        tokens = _tokens(f"chat {sub}")
+        assert tokens[2] == ("class:param", sub)
