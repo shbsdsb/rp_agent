@@ -153,6 +153,17 @@ def test_list_sessions_prints(monkeypatch, tmp_path, capsys):
     assert s.id in out
 
 
+def test_list_sessions_shows_name(monkeypatch, tmp_path, capsys):
+    """rename 后 list 应显示可读名称而非文件 id。"""
+    _setup(monkeypatch, tmp_path)
+    s = create_session()
+    s.name = "打招呼"
+    save_session(s)
+    list_sessions()
+    out = capsys.readouterr().out
+    assert "打招呼" in out
+
+
 def test_find_session_by_id_and_name(monkeypatch, tmp_path):
     _setup(monkeypatch, tmp_path)
     s = create_session()

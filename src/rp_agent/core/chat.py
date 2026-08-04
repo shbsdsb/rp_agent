@@ -85,14 +85,14 @@ def send_message(s: session_store.ChatSession, text: str) -> None:
 
 
 def list_sessions() -> None:
-    """打印历史会话(最新在前)。"""
+    """打印历史会话(最新在前);显示 name or id。"""
     sessions = session_store.list_sessions()
     if not sessions:
         print("(无历史会话)")
         return
     for s in sessions:
         conn = s.connection or "(未设置)"
-        print(f"{s.id}  {s.updated_at}  连接: {conn}  消息数: {len(s.messages)}")
+        print(f"{_display_key(s)}  {s.updated_at}  连接: {conn}  消息数: {len(s.messages)}")
 
 
 def load_session(session_id: str) -> session_store.ChatSession | None:
