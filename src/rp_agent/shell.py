@@ -684,12 +684,14 @@ class ShellCompleter(Completer):
             if subs:
                 yield from self._words(subs, document, complete_event)
             return
-        if position != 2:
-            return  # 只补第一个位置参数(chat rename 第二参等不补)
         current = parts[-1]
         if current.startswith("-"):
-            yield from self._words(_VALID_OPTIONS, document, complete_event)
+            # 选项补全:任意后续位置(第 3+ 词)均可补,与规格一致
+            if position >= 2:
+                yield from self._words(_VALID_OPTIONS, document, complete_event)
             return
+        if position != 2:
+            return  # 只补第一个位置参数(chat rename 第二参等不补)
         ptype = self._POSITIONAL.get((cmd, parts[1]))
         if ptype == "connection":
             try:

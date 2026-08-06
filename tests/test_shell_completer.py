@@ -69,6 +69,12 @@ def test_option_does_not_match_unknown(monkeypatch, tmp_path):
     assert _complete(monkeypatch, tmp_path, "api add --wat") == []
 
 
+def test_option_completes_after_multiple_positional(monkeypatch, tmp_path):
+    # 多参数后再补选项(规格:第 3+ 词以 - 开头 → 选项)
+    names = _names(_complete(monkeypatch, tmp_path, "api add --name foo --m"))
+    assert "--model" in names
+
+
 # --- 位置参数:连接名 / 会话名 ---
 
 def test_connection_name_completes(monkeypatch, tmp_path):
