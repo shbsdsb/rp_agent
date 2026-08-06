@@ -61,7 +61,7 @@ HELP_ENTRIES: list[dict[str, object]] = [
             ("test <name> [--timeout N]", "测试连接连通性"),
             ("pull <name> [--set-default] | pull --url U --key K", "拉取模型列表"),
             ("sync <name> [--set-default]", "测试并拉取模型"),
-            ("modify <name> [--set field=value ...]", "交互或非交互修改"),
+            ("modify <name> [--set field=value ...]", "交互或非交互修改(--set name=新名 可重命名)"),
             ("<name> -m [--set field=value ...]", "等效 api modify <name>(含 --set)"),
             ("use <name>", "设置全局默认连接(仅 home 模式)"),
             ("set <name>", "设置当前会话连接(仅对话模式内)"),

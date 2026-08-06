@@ -198,6 +198,7 @@ def test_modify_interactive_save(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
     responses = iter(
         [
+            ("", "normal"),  # name:回车保留原值 d
             ("https://new/v1", "normal"),
             ("newkey", "normal"),
             ("gpt-5", "save"),
@@ -557,3 +558,97 @@ def test_shell_reenter_chat_creates_new_session(monkeypatch, tmp_path, capsys):
     run_shell(_feed(["chat", "/exit", "chat", "/exit", "exit"]))
     out = capsys.readouterr().out
     assert out.count("新会话") == 2  # 两次进入各新建一次
+
+
+def test_shell_api_modify_set_rename(capsys, monkeypatch, tmp_path):
+    """api modify --set name=新名 重命名连接:新名保存、旧名文件删除。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api modify d --set name=e",
+                "api get e",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "已更新连接: e" in out
+    assert get_connection("e") is not None  # 新名存在
+    assert get_connection("d") is None  # 旧名已删除
+    assert get_connection("e").base_url == "https://x/v1"  # 其余字段保留
+
+
+def test_shell_api_modify_set_rename_conflict(capsys, monkeypatch, tmp_path):
+    """改名目标已存在 → 拒绝,原连接不受影响。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api add --name e --url https://y/v2 --key k2 --model m2",
+                "api modify d --set name=e",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "连接已存在: e" in out
+    assert get_connection("d") is not None
+    assert get_connection("e").base_url == "https://y/v2"  # 未被覆盖
+
+
+def test_shell_api_modify_set_rename_empty(capsys, monkeypatch, tmp_path):
+    """--set name= 空名 → 拒绝。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api modify d --set name=",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "连接名不能为空" in out
+    assert get_connection("d") is not None
+
+
+def test_modify_interactive_rename(monkeypatch, capsys, tmp_path):
+    """交互模式首字段为 Name,可修改连接名并删除旧文件。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    responses = iter(
+        [
+            ("newname", "normal"),
+            ("https://new/v1", "normal"),
+            ("newkey", "normal"),
+            ("gpt-5", "save"),
+        ]
+    )
+    monkeypatch.setattr(
+        "rp_agent.shell._prompt_field",
+        lambda _l, _c, _s: next(responses),
+    )
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api modify d",
+                "api get newname",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "已保存" in out
+    conn = get_connection("newname")
+    assert conn is not None
+    assert conn.base_url == "https://new/v1"
+    assert conn.model == "gpt-5"
+    assert get_connection("d") is None  # 旧名已删除

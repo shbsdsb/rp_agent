@@ -479,7 +479,7 @@ def _prompt_field(label: str, current: str, secret: bool) -> tuple[str, str]:
             f"{label} (回车保留: {shown}): ",
             is_password=secret,
             key_bindings=kb,
-            bottom_toolbar="^O 保存   ^X 放弃   /url /key /model 跳转字段",
+            bottom_toolbar="^O 保存   ^X 放弃   /name /url /key /model 跳转字段",
         )
     except KeyboardInterrupt:
         return "", "cancel"
@@ -489,15 +489,18 @@ def _prompt_field(label: str, current: str, secret: bool) -> tuple[str, str]:
 def _modify_interactive(conn: ApiConnection) -> None:
     """交互式编辑:nano 风格(Ctrl+O 保存 / Ctrl+X 放弃)+ 字段跳转。"""
     fields = [
+        ("name", "Name", False),
         ("base_url", "Base URL", False),
         ("api_key", "API Key", True),
         ("model", "Model", False),
     ]
     values: dict[str, str] = {
+        "name": conn.name,
         "base_url": conn.base_url,
         "api_key": conn.api_key,
         "model": conn.model,
     }
+    old_name = conn.name
     current = 0
     while True:
         field, label, secret = fields[current]
@@ -524,10 +527,28 @@ def _modify_interactive(conn: ApiConnection) -> None:
         if action == "save":
             for k, v in values.items():
                 setattr(conn, k, v)
-            save_connection(conn)
-            print("已保存")
+            if _persist_connection(conn, old_name):
+                print("已保存")
             return
         current = (current + 1) % len(fields)
+
+
+def _persist_connection(conn: ApiConnection, old_name: str) -> bool:
+    """保存连接;改名时校验冲突并删除旧文件。成功返回 True,失败打印原因。"""
+    if not conn.name.strip():
+        print("连接名不能为空")
+        return False
+    if conn.name != old_name and get_connection(conn.name) is not None:
+        print(f"连接已存在: {conn.name}")
+        return False
+    try:
+        save_connection(conn)
+    except ValueError as exc:
+        print(f"配置无效: {exc}")
+        return False
+    if conn.name != old_name:
+        delete_connection(old_name)
+    return True
 
 
 def _api_modify_set(conn: ApiConnection, sets: list[str]) -> None:
@@ -538,7 +559,7 @@ def _api_modify_set(conn: ApiConnection, sets: list[str]) -> None:
             print(f"非法 --set: {s}(应为 field=value)")
             return
         k, v = s.split("=", 1)
-        if k not in ("base_url", "api_key", "model", "timeout", "models_endpoint"):
+        if k not in ("base_url", "api_key", "model", "timeout", "models_endpoint", "name"):
             print(f"未知字段: {k}")
             return
         updates[k] = v
@@ -554,9 +575,11 @@ def _api_modify_set(conn: ApiConnection, sets: list[str]) -> None:
             except ValueError:
                 print(f"timeout 无效: {v}")
                 return
+    old_name = conn.name
     for k, v in updates.items():
         setattr(conn, k, float(v) if k == "timeout" else v)
-    save_connection(conn)
+    if not _persist_connection(conn, old_name):
+        return
     print(f"已更新连接: {conn.name}")
 
 
