@@ -7,7 +7,7 @@ from typing import Callable, Literal
 
 from datetime import datetime, timezone
 
-from prompt_toolkit.completion import Completer, Completion, WordCompleter
+from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.lexers import Lexer
@@ -723,34 +723,6 @@ class ShellCompleter(Completer):
                 yield Completion(text=w, start_position=-len(word) if word else 0)
 
 
-class ChatSessionCompleter(Completer):
-    """chat rename/get/load 与模式内 /load 的第一个参数:tab 补全会话名列表(zsh 式菜单)。"""
-
-    # 各命令自身词数(不包含参数):rename/get/load 2 词,/load 1 词
-    _CMD_WORDS = {"chat rename": 2, "chat get": 2, "chat load": 2, "/load": 1}
-
-    def get_completions(self, document, complete_event):
-        text = document.text
-        parts = text.split()
-        prefix = ""
-        if parts and parts[0] == "/load":
-            prefix = "/load"
-        elif len(parts) >= 2 and parts[0] == "chat" and parts[1] in ("rename", "get", "load"):
-            prefix = f"chat {parts[1]}"
-        else:
-            return
-        base = self._CMD_WORDS[prefix]
-        if len(parts) > base + 1:
-            return  # 已输入第二个参数
-        if len(parts) == base + 1 and text.endswith(" "):
-            return  # 第一参已输完且打了空格(准备第二参)
-        names = _chat_business("session_names")()
-        if not names:
-            return
-        completer = WordCompleter(names, ignore_case=True)
-        yield from completer.get_completions(document, complete_event)
-
-
 _pt_history = InMemoryHistory()
 
 
@@ -766,7 +738,7 @@ def _read_line(prompt: str) -> str:
             lexer=ShellLexer(),
             style=SHELL_STYLE,
             history=_pt_history,
-            completer=ChatSessionCompleter(),
+            completer=ShellCompleter(),
         )
     return input(prompt)
 
