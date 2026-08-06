@@ -21,6 +21,7 @@ from rp_agent.api.store import (
     connection_exists,
     delete_connection,
     get_connection,
+    get_default_name,
     list_connections,
     save_connection,
     set_default_connection,
@@ -290,12 +291,17 @@ def _api_list(rest: list[str]) -> None:
     if not conns:
         print("(无连接)")
         return
+    default_name = get_default_name()
     if "verbose" in opts:
         for c in conns:
-            print(f"{c.name}\t{c.base_url}\t{c.model}\t{c.last_tested or '-'}")
+            name_col = yellow(f"{c.name} *") if c.name == default_name else c.name
+            print(f"{name_col}\t{c.base_url}\t{c.model}\t{c.last_tested or '-'}")
     else:
         for c in conns:
-            print(f"  {c.name}")
+            if c.name == default_name:
+                print(f"  {yellow(c.name + ' *')}")
+            else:
+                print(f"  {c.name}")
 
 
 def _api_get(rest: list[str]) -> None:

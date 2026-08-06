@@ -54,7 +54,7 @@ HELP_ENTRIES: list[dict[str, object]] = [
         "desc": "API 连接管理(api list/get/add/del/test/pull/sync/modify)",
         "usage": "api <list|get|add|del|test|pull|sync|modify> ...",
         "params": [
-            ("list [-v] [--filter k=v]", "列出连接(详细视图/筛选)"),
+            ("list [-v] [--filter k=v]", "列出连接(默认连接以 * 标记)"),
             ("get <name>", "查看连接详情(密钥脱敏)"),
             ("add --name N --url U --key K [--model M] [--modify] [--pull]", "新建/覆盖连接"),
             ("del <name> [-f]", "删除连接(默认二次确认)"),

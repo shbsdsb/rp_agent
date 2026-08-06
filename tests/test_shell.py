@@ -675,3 +675,82 @@ def test_modify_interactive_rename(monkeypatch, capsys, tmp_path):
     assert conn.base_url == "https://new/v1"
     assert conn.model == "gpt-5"
     assert get_connection("d") is None  # 旧名已删除
+
+
+def test_shell_api_list_marks_default(capsys, monkeypatch, tmp_path):
+    """api list 对全局默认连接显示 * 标记,非默认不标记。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api add --name e --url https://y/v2 --key k2 --model m2",
+                "api use d",
+                "api list",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "d *" in out
+    assert "e *" not in out
+
+
+def test_shell_api_list_no_default_no_star(capsys, monkeypatch, tmp_path):
+    """未设置默认连接 → 列表无星号。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api list",
+                "exit",
+            ]
+        )
+    )
+    assert "*" not in capsys.readouterr().out
+
+
+def test_shell_api_list_verbose_marks_default(capsys, monkeypatch, tmp_path):
+    """verbose 视图同样标记默认连接。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api use d",
+                "api list -v",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert "d *" in out
+
+
+def test_shell_api_list_default_deleted_no_warning(
+    capsys, monkeypatch, tmp_path, caplog
+):
+    """默认连接指向已删除连接 → 无星号、无"读取 JSON 失败"告警。"""
+    import logging
+
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    with caplog.at_level(logging.WARNING, logger="rp_agent"):
+        run_shell(
+            _feed(
+                [
+                    "api add --name d --url https://x/v1 --key k --model m",
+                    "api use d",
+                    "api del d -f",
+                    "api list",
+                    "exit",
+                ]
+            )
+        )
+    out = capsys.readouterr().out
+    assert "*" not in out
+    assert "读取 JSON 失败" not in caplog.text
