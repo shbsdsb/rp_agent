@@ -619,6 +619,29 @@ def test_shell_api_modify_set_rename_empty(capsys, monkeypatch, tmp_path):
     assert get_connection("d") is not None
 
 
+def test_api_add_and_rename_produce_no_missing_file_warning(
+    capsys, monkeypatch, tmp_path, caplog
+):
+    """存在性检查不得触发 json_read 的"读取 JSON 失败"告警(误导性日志)。"""
+    import logging
+
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    with caplog.at_level(logging.WARNING, logger="rp_agent"):
+        run_shell(
+            _feed(
+                [
+                    "api add --name d --url https://x/v1 --key k --model m",
+                    "api modify d --set name=e",
+                    "api get e",
+                    "exit",
+                ]
+            )
+        )
+    assert "读取 JSON 失败" not in caplog.text
+    assert "连接已存在" not in capsys.readouterr().out  # 无冲突分支误触发
+
+
 def test_modify_interactive_rename(monkeypatch, capsys, tmp_path):
     """交互模式首字段为 Name,可修改连接名并删除旧文件。"""
     monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)

@@ -1,5 +1,6 @@
 from rp_agent.api.models import ApiConnection
 from rp_agent.api.store import (
+    connection_exists,
     delete_connection,
     get_connection,
     get_default_connection,
@@ -79,7 +80,19 @@ def test_roundtrip_new_fields(monkeypatch, tmp_path):
     assert loaded.last_tested == "2026-08-03T00:00:00+00:00"
 
 
-def test_old_file_backward_compat(monkeypatch, tmp_path):
+def test_connection_exists_checks_filename_only(monkeypatch, tmp_path, caplog):
+    """存在性检查只查文件名:不存在/空名返回 False,且不打日志。"""
+    import logging
+
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    conn = ApiConnection(name="demo", base_url="https://x/v1", api_key="k", model="m")
+    save_connection(conn)
+    with caplog.at_level(logging.WARNING, logger="rp_agent"):
+        assert connection_exists("demo") is True
+        assert connection_exists("nope") is False
+        assert connection_exists("") is False
+    assert "读取 JSON 失败" not in caplog.text
     monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
     monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
     (tmp_path / "api").mkdir(parents=True, exist_ok=True)

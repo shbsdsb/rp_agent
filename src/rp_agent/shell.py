@@ -18,6 +18,7 @@ from rp_agent.api.args import KNOWN_OPTIONS, parse_args
 from rp_agent.api.client import ApiError, list_models, test_connection
 from rp_agent.api.models import ApiConnection, mask_key
 from rp_agent.api.store import (
+    connection_exists,
     delete_connection,
     get_connection,
     list_connections,
@@ -327,7 +328,7 @@ def _api_add(rest: list[str]) -> None:
         return
     if pos:
         print("[弃用] 位置参数形式将移除,请改用 --name/--url/--key/--model")
-    if get_connection(name) is not None and "modify" not in opts:
+    if connection_exists(name) and "modify" not in opts:
         print(f"连接已存在: {name}(使用 api modify {name} 或 api add --modify ... 覆盖)")
         return
     conn = ApiConnection(name=name, base_url=url, api_key=key, model=model)
@@ -538,7 +539,7 @@ def _persist_connection(conn: ApiConnection, old_name: str) -> bool:
     if not conn.name.strip():
         print("连接名不能为空")
         return False
-    if conn.name != old_name and get_connection(conn.name) is not None:
+    if conn.name != old_name and connection_exists(conn.name):
         print(f"连接已存在: {conn.name}")
         return False
     try:

@@ -21,6 +21,14 @@ def list_connections() -> list[str]:
     return sorted(p.stem for p in API_DIR.glob("*.json"))
 
 
+def connection_exists(name: str) -> bool:
+    """连接是否已存在:仅查文件名,不读内容、不打日志(区别于 get_connection)。"""
+    if not name:
+        return False
+    ensure_dirs()
+    return _conn_path(name).exists()
+
+
 def get_connection(name: str) -> ApiConnection | None:
     if not name:
         return None  # 空名直接返回,避免拼出 api/.json 触发文件读取告警
