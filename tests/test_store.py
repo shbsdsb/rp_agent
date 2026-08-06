@@ -4,6 +4,7 @@ from rp_agent.api.store import (
     delete_connection,
     get_connection,
     get_default_connection,
+    get_default_name,
     list_connections,
     save_connection,
     set_default_connection,
@@ -104,3 +105,20 @@ def test_connection_exists_checks_filename_only(monkeypatch, tmp_path, caplog):
     assert loaded is not None
     assert loaded.models_endpoint == "/models"
     assert loaded.last_tested == ""
+
+
+def test_get_default_name_roundtrip(monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    assert get_default_name() is None  # 未设置
+    set_default_connection("d")
+    assert get_default_name() == "d"
+
+
+def test_get_default_name_empty_and_corrupt(monkeypatch, tmp_path):
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    set_default_connection("")  # 空名
+    assert get_default_name() is None
+    (tmp_path / "default_connection.json").write_text("not a dict", encoding="utf-8")
+    assert get_default_name() is None  # 损坏文件 → None,不崩溃

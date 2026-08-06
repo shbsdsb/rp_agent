@@ -85,7 +85,8 @@ def _default_conn_path() -> Path:
     return safe_path("default_connection.json")
 
 
-def get_default_connection() -> ApiConnection | None:
+def get_default_name() -> str | None:
+    """当前默认连接名:仅读 default_connection.json 的 name 字段,不加载连接。"""
     ensure_dirs()
     path = _default_conn_path()
     if not path.exists():
@@ -94,6 +95,11 @@ def get_default_connection() -> ApiConnection | None:
     if not isinstance(data, dict):
         return None
     name = str(data.get("name", ""))
+    return name or None
+
+
+def get_default_connection() -> ApiConnection | None:
+    name = get_default_name()
     return get_connection(name) if name else None
 
 
