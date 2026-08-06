@@ -645,8 +645,23 @@ class ShellCompleter(Completer):
 
     与 ShellLexer 共用 _KNOWN_COMMANDS/_COMMAND_ARGS/_VALID_OPTIONS 数据源,
     保证"着色的词 = 可补全的词"。按正在输入词的 0-based 位置分派:
-    0=命令名,1=蓝色子命令,2=第一位置参数(选项在词以 - 开头时优先)。
+    0=命令名,1=蓝色子命令,2=第一位置参数(词以 - 开头时优先补选项)。
     """
+
+    # (命令, 子命令) → 第一个位置参数类型;未列出者不补位置参数
+    _POSITIONAL: dict[tuple[str, str], str] = {
+        ("api", "get"): "connection",
+        ("api", "del"): "connection",
+        ("api", "test"): "connection",
+        ("api", "pull"): "connection",
+        ("api", "sync"): "connection",
+        ("api", "modify"): "connection",
+        ("api", "use"): "connection",
+        ("api", "set"): "connection",
+        ("chat", "get"): "session",
+        ("chat", "load"): "session",
+        ("chat", "rename"): "session",
+    }
 
     def get_completions(self, document, complete_event):
         text = document.text
@@ -659,14 +674,38 @@ class ShellCompleter(Completer):
         if position == 0:
             yield from self._words(_COMMAND_NAMES, document, complete_event)
             return
-        cmd = parts[0].lstrip("/")
+        first = parts[0]
+        if first == "/load" and position == 1:
+            yield from self._sessions(document, complete_event)
+            return
+        cmd = first.lstrip("/")
         if position == 1:
             subs = _COMMAND_ARGS.get(cmd, set())
             if subs:
                 yield from self._words(subs, document, complete_event)
             return
-        # 位置参数/选项在 Task 2 实现;当前只做静态部分
-        return
+        if position != 2:
+            return  # 只补第一个位置参数(chat rename 第二参等不补)
+        current = parts[-1]
+        if current.startswith("-"):
+            yield from self._words(_VALID_OPTIONS, document, complete_event)
+            return
+        ptype = self._POSITIONAL.get((cmd, parts[1]))
+        if ptype == "connection":
+            try:
+                names = list_connections()
+            except Exception:
+                return
+            yield from self._words(names, document, complete_event)
+        elif ptype == "session":
+            yield from self._sessions(document, complete_event)
+
+    def _sessions(self, document, complete_event):
+        try:
+            names = _chat_business("session_names")() or []
+        except Exception:
+            return
+        yield from self._words(names, document, complete_event)
 
     @staticmethod
     def _words(words, document, complete_event):
