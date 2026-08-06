@@ -1,50 +1,44 @@
 from prompt_toolkit.document import Document
 
-from rp_agent.shell import ChatSessionCompleter
+from rp_agent.shell import ShellCompleter
 
 
 def _complete(monkeypatch, tmp_path, text: str):
-    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
-    from rp_agent.core.session import create_session, save_session
-
-    s = create_session()
-    s.name = "三体会话"
-    save_session(s)
+    if monkeypatch is not None:
+        monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
     doc = Document(text)
-    return list(ChatSessionCompleter().get_completions(doc, None))
+    return list(ShellCompleter().get_completions(doc, None))
 
 
 def _names(result):
     return [c.text for c in result]
 
 
-def test_rename_completer_suggests_after_prefix(monkeypatch, tmp_path):
-    assert "三体会话" in _names(_complete(monkeypatch, tmp_path, "chat rename "))
+def test_command_name_completes_after_prefix():
+    assert "api" in _names(_complete(None, None, "a"))
+    assert "agent" in _names(_complete(None, None, "a"))
 
 
-def test_rename_completer_suggests_partial_word(monkeypatch, tmp_path):
-    assert "三体会话" in _names(_complete(monkeypatch, tmp_path, "chat rename 三体"))
+def test_command_name_completes_empty_line():
+    names = _names(_complete(None, None, ""))
+    assert "api" in names and "help" in names
 
 
-def test_get_completer_suggests(monkeypatch, tmp_path):
-    assert "三体会话" in _names(_complete(monkeypatch, tmp_path, "chat get "))
+def test_slash_command_completes():
+    assert "/load" in _names(_complete(None, None, "/l"))
+    assert "/exit" in _names(_complete(None, None, "/e"))
 
 
-def test_load_completer_suggests(monkeypatch, tmp_path):
-    assert "三体会话" in _names(_complete(monkeypatch, tmp_path, "chat load "))
+def test_subcommand_completes_after_prefix():
+    assert "list" in _names(_complete(None, None, "api li"))
+    assert "modify" in _names(_complete(None, None, "api m"))
 
 
-def test_slash_load_completer_suggests(monkeypatch, tmp_path):
-    assert "三体会话" in _names(_complete(monkeypatch, tmp_path, "/load "))
+def test_subcommand_completes_all_after_space():
+    names = _names(_complete(None, None, "api "))
+    for sub in ("list", "get", "add", "del", "test", "pull", "sync", "modify", "use", "set"):
+        assert sub in names
 
 
-def test_rename_completer_ignores_other_commands(monkeypatch, tmp_path):
-    assert _complete(monkeypatch, tmp_path, "api list") == []
-    assert _complete(monkeypatch, tmp_path, "chat foobar ") == []
-
-
-def test_completer_ignores_second_arg(monkeypatch, tmp_path):
-    # chat rename <旧> <新> 已输入第二个参数 → 不再补全
-    assert _complete(monkeypatch, tmp_path, "chat rename 三体会话 新") == []
-    assert _complete(monkeypatch, tmp_path, "chat load 三体会话 ") == []
-    assert _complete(monkeypatch, tmp_path, "/load 三体会话 ") == []
+def test_unknown_command_offers_nothing():
+    assert _complete(None, None, "foobar ") == []

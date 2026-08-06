@@ -7,7 +7,7 @@ from typing import Callable, Literal
 
 from datetime import datetime, timezone
 
-from prompt_toolkit.completion import Completer, WordCompleter
+from prompt_toolkit.completion import Completer, Completion, WordCompleter
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.lexers import Lexer
@@ -634,6 +634,54 @@ class ShellLexer(Lexer):
             return tokens
 
         return get_line
+
+
+# 命令名补全候选:已知命令 + / 转义变体(模式内 /load、/exit 等)
+_COMMAND_NAMES: set[str] = _KNOWN_COMMANDS | {f"/{c}" for c in _KNOWN_COMMANDS}
+
+
+class ShellCompleter(Completer):
+    """全范围 Tab 补全(dropdown):命令名/蓝色子命令/灰色选项/连接名/会话名。
+
+    与 ShellLexer 共用 _KNOWN_COMMANDS/_COMMAND_ARGS/_VALID_OPTIONS 数据源,
+    保证"着色的词 = 可补全的词"。按正在输入词的 0-based 位置分派:
+    0=命令名,1=蓝色子命令,2=第一位置参数(选项在词以 - 开头时优先)。
+    """
+
+    def get_completions(self, document, complete_event):
+        text = document.text
+        if not text.strip():
+            yield from self._words(_COMMAND_NAMES, document, complete_event)
+            return
+        parts = text.split()
+        # 尾空格说明上一词已完成、正在输入新词
+        position = len(parts) if text.endswith(" ") else len(parts) - 1
+        if position == 0:
+            yield from self._words(_COMMAND_NAMES, document, complete_event)
+            return
+        cmd = parts[0].lstrip("/")
+        if position == 1:
+            subs = _COMMAND_ARGS.get(cmd, set())
+            if subs:
+                yield from self._words(subs, document, complete_event)
+            return
+        # 位置参数/选项在 Task 2 实现;当前只做静态部分
+        return
+
+    @staticmethod
+    def _words(words, document, complete_event):
+        """对 words 做大小写不敏感前缀补全。
+
+        用 WORD=True 提取正在输入的完整词(含 / 前缀、-- 选项等,
+        仅以空白分界),避免 WordCompleter 的字母数字正则把 / 当分隔符。
+        """
+        if not words:
+            return
+        word = document.get_word_before_cursor(WORD=True)
+        lower = word.lower()
+        for w in sorted(words):
+            if w.lower().startswith(lower):
+                yield Completion(text=w, start_position=-len(word) if word else 0)
 
 
 class ChatSessionCompleter(Completer):
