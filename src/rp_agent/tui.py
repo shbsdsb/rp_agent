@@ -46,18 +46,24 @@ def clamp_offset(total: int, height: int, offset: int) -> int:
     return max(0, min(offset, max(0, total - height)))
 
 
+def _sync_mode_clear(mode: str) -> bool:
+    """模式变化 → 清空输出区。返回是否发生了清空(惰性 clear 与 _accept 主动 clear 共用)。"""
+    global _tail_offset, _current_mode_snapshot
+    if mode == _current_mode_snapshot:
+        return False
+    _output_lines.clear()
+    _tail_offset = 0
+    _current_mode_snapshot = mode
+    return True
+
+
 def _append(text: str) -> None:
     """emit 目标:模式变化 → 清空;追加行;贴底自动跟随。"""
-    global _tail_offset, _current_mode_snapshot
     # 惰性读 shell 模块状态:handle_line 用 global 改写 shell._current_mode,
     # from-import 只会拿到导入时的值快照,必须经模块对象取最新值。
     import rp_agent.shell as shell_mod
 
-    mode = shell_mod._current_mode
-    if mode != _current_mode_snapshot:
-        _output_lines.clear()
-        _tail_offset = 0
-        _current_mode_snapshot = mode
+    _sync_mode_clear(shell_mod._current_mode)
     for sub in str(text).splitlines():
         _output_lines.append(to_formatted_text(ANSI(sub)))
     del _output_lines[:-MAX_LINES]
@@ -134,6 +140,8 @@ def _accept(buff: Buffer) -> None:
     if _ui_switch_request():
         _app.exit()
         return
+    # 模式切换后若本次输入无 emit(惰性 clear 未触发),主动清空遗留输出
+    _sync_mode_clear(shell_mod._current_mode)
     _invalidate()
 
 

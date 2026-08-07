@@ -765,7 +765,7 @@ def test_handle_line_switches_mode_and_quits(capsys):
     import rp_agent.shell as shell_mod
 
     handle_line("chat")
-    # handle_line 只写切换请求,模式由 run_shell/TUI 消费循环应用
+    # handle_line 写入切换请求并同步 _current_mode,模式由 run_shell/TUI 消费循环应用
     assert shell_mod._mode_switch_request == "chat"
     # 非 home 模式 /exit 回 home
     handle_line("/exit")
@@ -821,3 +821,98 @@ def test_dispatch_loop_switches_ui(monkeypatch, capsys):
     # 用注入输入:cli 模式跑 REPL,输入 reload --tui 后退出
     shell_mod.run_shell(_feed(["reload --tui", "exit"]))
     assert calls == ["tui:home"]  # 分发循环:cli → 切 tui → 跑 tui.run → tui 内 exit → break
+
+
+# --- TUI 下交互输入降级(Important 1) ---
+
+def test_confirm_degrades_in_tui(monkeypatch):
+    """TUI 下 _confirm 不弹 input,直接返回 False 拒绝并给提示。"""
+    import rp_agent.shell as shell_mod
+    from rp_agent import output
+
+    def _boom(*_a, **_k):
+        raise AssertionError("TUI 下不应调用 input")
+
+    # raising=False:模块 dict 无 input 键(内置名),patch 后屏蔽 builtins 即可
+    monkeypatch.setattr("rp_agent.shell.input", _boom, raising=False)
+    collected: list[str] = []
+    output.set_emit_target(collected.append)
+    try:
+        ans = shell_mod._confirm("确认删除连接 d? [y/N]: ")
+    finally:
+        output.reset_emit_target()
+    assert ans is False
+    assert collected == ["TUI 下不可交互确认,请加 -f 参数"]
+
+
+def test_chat_rename_single_arg_degrades_in_tui(monkeypatch):
+    """TUI 下 chat rename 单参数不交互,提示用完整形式。"""
+    import rp_agent.shell as shell_mod
+    from rp_agent import output
+
+    def _boom(*_a, **_k):
+        raise AssertionError("TUI 下不应调用 _read_line")
+
+    monkeypatch.setattr("rp_agent.shell._read_line", _boom)
+    collected: list[str] = []
+    output.set_emit_target(collected.append)
+    try:
+        shell_mod._chat_rename(["旧会话"])
+    finally:
+        output.reset_emit_target()
+    assert collected == ["TUI 下请使用完整形式:chat rename <会话> <新名称>"]
+
+
+def test_api_modify_interactive_degrades_in_tui(monkeypatch, tmp_path):
+    """TUI 下 api modify(无 --set)不进入交互编辑,提示用非交互形式。"""
+    import rp_agent.shell as shell_mod
+    from rp_agent import output
+    from rp_agent.api.models import ApiConnection
+    from rp_agent.api.store import save_connection
+
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    save_connection(
+        ApiConnection(name="d", base_url="https://x/v1", api_key="k", model="m")
+    )
+
+    def _boom(*_a, **_k):
+        raise AssertionError("TUI 下不应调用 _modify_interactive")
+
+    monkeypatch.setattr("rp_agent.shell._modify_interactive", _boom)
+    collected: list[str] = []
+    output.set_emit_target(collected.append)
+    try:
+        shell_mod._cmd_api(["modify", "d"])
+    finally:
+        output.reset_emit_target()
+    assert collected == [
+        "TUI 下请使用非交互形式:api modify <name> --set field=value"
+    ]
+
+
+# --- tui._sync_mode_clear 主动清空(Important 2 提取的纯 helper) ---
+
+def test_tui_sync_mode_clear_on_mismatch():
+    import rp_agent.tui as tui
+
+    tui._output_lines.clear()
+    tui._output_lines.append("遗留行")
+    tui._tail_offset = 3
+    tui._current_mode_snapshot = "home"
+    assert tui._sync_mode_clear("rp") is True
+    assert tui._output_lines == []
+    assert tui._tail_offset == 0
+    assert tui._current_mode_snapshot == "rp"
+
+
+def test_tui_sync_mode_clear_on_match_is_noop():
+    import rp_agent.tui as tui
+
+    tui._output_lines.clear()
+    tui._output_lines.append("行")
+    tui._tail_offset = 0
+    tui._current_mode_snapshot = "rp"
+    assert tui._sync_mode_clear("rp") is False
+    assert len(tui._output_lines) == 1
+    assert tui._current_mode_snapshot == "rp"

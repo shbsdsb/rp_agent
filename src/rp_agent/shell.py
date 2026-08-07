@@ -28,7 +28,7 @@ from rp_agent.api.store import (
 )
 from rp_agent.config import get_config, reload_config
 from rp_agent.help_data import HELP_ENTRIES, find_entry
-from rp_agent.output import emit
+from rp_agent.output import emit, is_tui
 from rp_agent.term import blue, gray, yellow
 
 logger = logging.getLogger("rp_agent")
@@ -274,6 +274,9 @@ def _chat_rename(rest: list[str]) -> None:
     if len(rest) == 2:
         _chat_business("rename_by_key")(rest[0], rest[1])
     elif len(rest) == 1:
+        if is_tui():
+            emit("TUI 下请使用完整形式:chat rename <会话> <新名称>")
+            return
         # 交互:第二行输入新名
         new_name = _read_line(f"新名称({rest[0]}): ").strip()
         if not new_name:
@@ -284,8 +287,11 @@ def _chat_rename(rest: list[str]) -> None:
         emit("用法: chat rename <旧名> <新名>(旧名输入时可按 Tab 补全选择)")
 
 
-def _confirm(prompt: str) -> str:
-    """交互确认(可被测试 monkeypatch)。"""
+def _confirm(prompt: str) -> str | bool:
+    """交互确认(可被测试 monkeypatch)。TUI 下不可交互,返回 False 拒绝。"""
+    if is_tui():
+        emit("TUI 下不可交互确认,请加 -f 参数")
+        return False
     return input(prompt).strip()
 
 
@@ -374,7 +380,7 @@ def _api_del(rest: list[str]) -> None:
     name = pos[0]
     if "force" not in opts:
         ans = _confirm(f"确认删除连接 {name}? [y/N]: ")
-        if ans.lower() not in ("y", "yes"):
+        if not ans or ans.lower() not in ("y", "yes"):
             emit("已取消")
             return
     if delete_connection(name):
@@ -472,6 +478,8 @@ def _api_modify(rest: list[str]) -> None:
         sets = [sets]
     if sets:
         _api_modify_set(conn, sets)
+    elif is_tui():
+        emit("TUI 下请使用非交互形式:api modify <name> --set field=value")
     else:
         _modify_interactive(conn)
 
@@ -626,12 +634,13 @@ _KNOWN_COMMANDS: set[str] = (
 _COMMAND_ARGS: dict[str, set[str]] = {
     "api": {"list", "get", "add", "del", "test", "pull", "sync", "modify", "use", "set"},
     "chat": {"list", "get", "load", "rename"},
+    "reload": {"--tui", "--cli"},
     "help": _KNOWN_COMMANDS,
     "?": _KNOWN_COMMANDS,
 }
 
-# 有效选项(--长选项 / -短选项,灰色):全部已知选项(与 args.py 同步)
-_VALID_OPTIONS: set[str] = KNOWN_OPTIONS
+# 有效选项(--长选项 / -短选项,灰色):全部已知选项(与 args.py 同步)+ reload 的界面切换选项
+_VALID_OPTIONS: set[str] = KNOWN_OPTIONS | {"--tui", "--cli"}
 
 SHELL_STYLE = Style.from_dict(
     {
@@ -893,7 +902,7 @@ def _run_repl(
     _input: Callable[[str], str] = _read_line, initial_mode: Mode = "home"
 ) -> None:
     """逐行 REPL 循环(Task 2 改造后的原 run_shell 主体)。"""
-    global _current_mode, _chat_session, _mode_switch_request, _quit_request
+    global _current_mode, _chat_session, _mode_switch_request, _quit_request, _ui_switch_request
     _history.clear()
     _quit_request = False
     mode = initial_mode
@@ -907,6 +916,7 @@ def _run_repl(
             line = _input(_prompt_for_mode(mode))
         except (EOFError, KeyboardInterrupt):
             emit("退出")
+            _ui_switch_request = None  # 丢弃 pending 界面切换,避免 Ctrl+C 后误入 TUI
             return
         handle_line(line)
         if _quit_request:
