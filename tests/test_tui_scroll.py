@@ -31,6 +31,7 @@ def test_clamp_offset_bounds():
 def test_append_stores_lines_and_follows_tail(capsys):
     tui._output_lines.clear()
     tui._tail_offset = 0
+    tui._current_mode_snapshot = "home"
     output.set_emit_target(tui._append)
     try:
         tui._append("第一行")
@@ -49,6 +50,7 @@ def _fmt_text(fmt) -> str:
 def test_append_respects_max_lines():
     tui._output_lines.clear()
     tui._tail_offset = 0
+    tui._current_mode_snapshot = "home"
     for i in range(tui.MAX_LINES + 10):
         tui._append(f"行{i}")
     assert len(tui._output_lines) == tui.MAX_LINES
@@ -58,6 +60,7 @@ def test_append_respects_max_lines():
 def test_append_keeps_offset_when_scrolled_back():
     tui._output_lines.clear()
     tui._tail_offset = 3  # 用户回看中
+    tui._current_mode_snapshot = "home"
     for i in range(5):
         tui._append(f"行{i}")
     assert tui._tail_offset == 3  # 回看时新行不打断

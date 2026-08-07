@@ -27,7 +27,7 @@ MAX_LINES = 5000
 _output_lines: list = []  # list[FormattedText],TUI 会话期间输出历史(跨界面切换保留)
 _tail_offset = 0  # 0 = 贴底显示最新;正数 = 向上回看 offset 行
 
-_current_mode_snapshot: str = ""
+_current_mode_snapshot: str = "home"
 
 
 def visible_slice(total: int, height: int, tail_offset: int) -> tuple[int, int]:
@@ -82,11 +82,9 @@ class OutputControl(FormattedTextControl):
 
     def __init__(self) -> None:
         super().__init__(text="")
-        self._height = 1
 
     def create_content(self, width: int, height: int | None):
         h = height or 1
-        self._height = h
         start, end = visible_slice(len(_output_lines), h, _tail_offset)
         # 每行是 FormattedText(style, text) 列表;渲染按文本中的 \n 切行,
         # 故行间需显式插入换行 fragment,再把各行的 style 片段平铺。
@@ -175,11 +173,13 @@ def run(initial_mode: str = "home") -> None:
         def _go_top(event):
             global _tail_offset
             _tail_offset = clamp_offset(len(_output_lines), 10, len(_output_lines))
+            _invalidate()
 
         @kb.add("end")
         def _go_bottom(event):
             global _tail_offset
             _tail_offset = 0
+            _invalidate()
 
         output_win = Window(
             OutputControl(), wrap_lines=False, allow_scroll_beyond_bottom=True
@@ -193,13 +193,6 @@ def run(initial_mode: str = "home") -> None:
                         style="class:status",
                     ),
                     output_win,
-                    Window(
-                        FormattedTextControl(
-                            "reload --tui/--cli 切换界面 | PageUp/PageDown/滚轮滚动 | exit 退出"
-                        ),
-                        height=1,
-                        style="class:hint",
-                    ),
                     VSplit(
                         [
                             Window(
@@ -215,6 +208,13 @@ def run(initial_mode: str = "home") -> None:
                                 height=1,
                             ),
                         ]
+                    ),
+                    Window(
+                        FormattedTextControl(
+                            "reload --tui/--cli 切换界面 | PageUp/PageDown/滚轮滚动 | exit 退出"
+                        ),
+                        height=1,
+                        style="class:hint",
                     ),
                 ]
             )
