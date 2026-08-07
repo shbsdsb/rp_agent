@@ -6,11 +6,13 @@ from rp_agent.shell import handle_line, parse_line, run_shell
 
 @pytest.fixture(autouse=True)
 def _reset_shell_state():
-    """重置 shell 模块级状态(_chat_session/_current_mode),隔离测试间污染。"""
+    """重置 shell 模块级状态(_chat_session/_current_mode/_quit_request 等),隔离测试间污染。"""
     import rp_agent.shell as shell_mod
 
     shell_mod._chat_session = None
     shell_mod._current_mode = "home"
+    shell_mod._mode_switch_request = None
+    shell_mod._quit_request = False
     yield
 
 
