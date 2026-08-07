@@ -28,6 +28,7 @@ from rp_agent.api.store import (
 )
 from rp_agent.config import get_config, reload_config
 from rp_agent.help_data import HELP_ENTRIES, find_entry
+from rp_agent.output import emit
 from rp_agent.term import blue, gray, yellow
 
 logger = logging.getLogger("rp_agent")
@@ -67,42 +68,42 @@ def parse_line(line: str) -> tuple[str, list[str]]:
 def _cmd_config(args: list[str]) -> None:
     if args and args[0] == "timeout":
         if len(args) < 2:
-            print("用法: config timeout <秒>")
+            emit("用法: config timeout <秒>")
             return
         try:
             secs = float(args[1])
         except ValueError:
-            print(f"非法超时: {args[1]}")
+            emit(f"非法超时: {args[1]}")
             return
         if secs <= 0:
-            print("超时必须为正数")
+            emit("超时必须为正数")
             return
         from rp_agent.config import save_config
 
         save_config({"timeout": secs})
         reload_config()
-        print(f"已设置全局超时: {secs}s")
+        emit(f"已设置全局超时: {secs}s")
         return
     cfg = get_config()
-    print(f"log_level={cfg.log_level}")
-    print(f"timeout={cfg.timeout}s")
+    emit(f"log_level={cfg.log_level}")
+    emit(f"timeout={cfg.timeout}s")
 
 
 def _cmd_reload(_args: list[str]) -> None:
     changed = reload_config()
     cfg = get_config()
-    print(f"配置已重载,发生变化: {changed},log_level={cfg.log_level}")
+    emit(f"配置已重载,发生变化: {changed},log_level={cfg.log_level}")
 
 
 def _cmd_hello(_args: list[str]) -> None:
     cfg = get_config()
-    print(f"你好!rp-agent 骨架已就绪,当前日志级别: {cfg.log_level}")
+    emit(f"你好!rp-agent 骨架已就绪,当前日志级别: {cfg.log_level}")
     logger.info("shell 中执行 hello")
 
 
 def _cmd_history(_args: list[str]) -> None:
     for i, h in enumerate(_history, start=1):
-        print(f"  {i:>3}  {h}")
+        emit(f"  {i:>3}  {h}")
 
 
 def _colorize_usage(usage: str) -> str:
@@ -121,18 +122,18 @@ def _colorize_usage(usage: str) -> str:
 def _print_command_help(command: str) -> None:
     entry = find_entry(command)
     if entry is None:
-        print(f"未知命令: {command}(输入 help 查看可用命令)")
+        emit(f"未知命令: {command}(输入 help 查看可用命令)")
         return
-    print(f"用法: {_colorize_usage(str(entry['usage']))}")
+    emit(f"用法: {_colorize_usage(str(entry['usage']))}")
     for param, desc in entry["params"]:
-        print(f"  {blue(param):<34} {desc}")
+        emit(f"  {blue(param):<34} {desc}")
 
 
 def _cmd_help(args: list[str]) -> None:
     if args:
         _print_command_help(args[0])
         return
-    print("可用命令:")
+    emit("可用命令:")
     names = []
     for e in HELP_ENTRIES:
         name = e["command"]
@@ -141,21 +142,21 @@ def _cmd_help(args: list[str]) -> None:
         names.append(name)
     width = max(len(n) for n in names)
     for e, name in zip(HELP_ENTRIES, names):
-        print(f"  {yellow(name.ljust(width))}  {e['desc']}")
-    print("  输入 <命令> --help 查看详细用法")
+        emit(f"  {yellow(name.ljust(width))}  {e['desc']}")
+    emit("  输入 <命令> --help 查看详细用法")
 
 
 def _cmd_api(args: list[str]) -> None:
     if not args:
-        print(f"用法: {_colorize_usage('api <list|get|add|del|test|pull|sync|modify> ...')}")
+        emit(f"用法: {_colorize_usage('api <list|get|add|del|test|pull|sync|modify> ...')}")
         return
     sub = args[0]
     try:
         _dispatch_api(sub, args[1:])
     except ValueError as exc:
-        print(f"参数错误: {exc}")
+        emit(f"参数错误: {exc}")
     except ApiError as exc:
-        print(f"API 错误: {exc}")
+        emit(f"API 错误: {exc}")
 
 
 def _dispatch_api(sub: str, rest: list[str]) -> None:
@@ -186,46 +187,46 @@ def _dispatch_api(sub: str, rest: list[str]) -> None:
             keep = [a for a in rest if a not in ("-m", "--modify")]
             _api_modify([sub] + keep)
             return
-        print(f"未知子命令: {sub}(用法: api <list|get|add|del|test|pull|sync|modify> ...)")
+        emit(f"未知子命令: {sub}(用法: api <list|get|add|del|test|pull|sync|modify> ...)")
 
 
 def _api_use(rest: list[str]) -> None:
     """设置全局默认连接(仅 home 模式)。"""
     if _current_mode != "home":
-        print("api use 仅可在 home 模式使用")
+        emit("api use 仅可在 home 模式使用")
         return
     if not rest:
-        print("用法: api use <name>")
+        emit("用法: api use <name>")
         return
     name = rest[0]
     if get_connection(name) is None:
-        print(f"连接不存在: {name}")
+        emit(f"连接不存在: {name}")
         return
     set_default_connection(name)
-    print(f"已设置全局默认连接: {name}")
+    emit(f"已设置全局默认连接: {name}")
 
 
 def _api_set(rest: list[str]) -> None:
     """切换当前会话连接(仅对话模式内)。"""
     if _current_mode == "home":
-        print("api set 仅可在对话模式内使用")
+        emit("api set 仅可在对话模式内使用")
         return
     if not rest:
-        print("用法: api set <name>")
+        emit("用法: api set <name>")
         return
     name = rest[0]
     if get_connection(name) is None:
-        print(f"连接不存在: {name}")
+        emit(f"连接不存在: {name}")
         return
     if _chat_session is None:
-        print("当前无会话,请先 /new 或 /load")
+        emit("当前无会话,请先 /new 或 /load")
         return
     _chat_business("set_connection")(_chat_session, name)
 
 
 def _cmd_chat(args: list[str]) -> None:
     if not args:
-        print(f"用法: {_colorize_usage('chat <list|get|load|rename> ...')}")
+        emit(f"用法: {_colorize_usage('chat <list|get|load|rename> ...')}")
         return
     _dispatch_chat(args[0], args[1:])
 
@@ -235,18 +236,18 @@ def _dispatch_chat(sub: str, rest: list[str]) -> None:
         _chat_business("list_sessions")()
     elif sub == "get":
         if not rest:
-            print("用法: chat get <id|name>")
+            emit("用法: chat get <id|name>")
             return
         _chat_business("get_session")(rest[0])
     elif sub == "load":
         if not rest:
-            print("用法: chat load <id|name>")
+            emit("用法: chat load <id|name>")
             return
         _chat_load(rest[0])
     elif sub == "rename":
         _chat_rename(rest)
     else:
-        print(f"未知子命令: {sub}(用法: chat <list|get|load|rename> ...)")
+        emit(f"未知子命令: {sub}(用法: chat <list|get|load|rename> ...)")
 
 
 def _chat_load(key: str) -> None:
@@ -264,11 +265,11 @@ def _chat_rename(rest: list[str]) -> None:
         # 交互:第二行输入新名
         new_name = _read_line(f"新名称({rest[0]}): ").strip()
         if not new_name:
-            print("已取消")
+            emit("已取消")
             return
         _chat_business("rename_by_key")(rest[0], new_name)
     else:
-        print("用法: chat rename <旧名> <新名>(旧名输入时可按 Tab 补全选择)")
+        emit("用法: chat rename <旧名> <新名>(旧名输入时可按 Tab 补全选择)")
 
 
 def _confirm(prompt: str) -> str:
@@ -284,42 +285,42 @@ def _api_list(rest: list[str]) -> None:
         filters = [filters]
     for f in filters:
         if "=" not in f:
-            print(f"[警告] 忽略非法筛选: {f}(应为 k=v)")
+            emit(f"[警告] 忽略非法筛选: {f}(应为 k=v)")
             continue
         k, v = f.split("=", 1)
         conns = [c for c in conns if str(getattr(c, k, "")).startswith(v)]
     if not conns:
-        print("(无连接)")
+        emit("(无连接)")
         return
     default_name = get_default_name()
     if "verbose" in opts:
         for c in conns:
             name_col = yellow(f"{c.name} *") if c.name == default_name else c.name
-            print(f"{name_col}\t{c.base_url}\t{c.model}\t{c.last_tested or '-'}")
+            emit(f"{name_col}\t{c.base_url}\t{c.model}\t{c.last_tested or '-'}")
     else:
         for c in conns:
             if c.name == default_name:
-                print(f"  {yellow(c.name + ' *')}")
+                emit(f"  {yellow(c.name + ' *')}")
             else:
-                print(f"  {c.name}")
+                emit(f"  {c.name}")
 
 
 def _api_get(rest: list[str]) -> None:
     _, pos = parse_args(rest)
     if not pos:
-        print("用法: api get <name>")
+        emit("用法: api get <name>")
         return
     conn = get_connection(pos[0])
     if conn is None:
-        print(f"连接不存在: {pos[0]}")
+        emit(f"连接不存在: {pos[0]}")
         return
-    print(f"name={conn.name}")
-    print(f"base_url={conn.base_url}")
-    print(f"api_key={mask_key(conn.api_key) if conn.api_key else '(空)'}")
-    print(f"model={conn.model}")
-    print(f"timeout={conn.timeout}")
-    print(f"models_endpoint={conn.models_endpoint}")
-    print(f"last_tested={conn.last_tested or '(未测试)'}")
+    emit(f"name={conn.name}")
+    emit(f"base_url={conn.base_url}")
+    emit(f"api_key={mask_key(conn.api_key) if conn.api_key else '(空)'}")
+    emit(f"model={conn.model}")
+    emit(f"timeout={conn.timeout}")
+    emit(f"models_endpoint={conn.models_endpoint}")
+    emit(f"last_tested={conn.last_tested or '(未测试)'}")
 
 
 def _api_add(rest: list[str]) -> None:
@@ -329,65 +330,65 @@ def _api_add(rest: list[str]) -> None:
     key = opts.get("key") or (pos[2] if len(pos) > 2 else None)
     model = opts.get("model") or (pos[3] if len(pos) > 3 else "")
     if not (name and url and key):
-        print("用法: api add --name <name> --url <base_url> --key <api_key> [--model <model>]")
-        print("  或(弃用) api add <name> <base_url> <api_key> [model]")
+        emit("用法: api add --name <name> --url <base_url> --key <api_key> [--model <model>]")
+        emit("  或(弃用) api add <name> <base_url> <api_key> [model]")
         return
     if pos:
-        print("[弃用] 位置参数形式将移除,请改用 --name/--url/--key/--model")
+        emit("[弃用] 位置参数形式将移除,请改用 --name/--url/--key/--model")
     if connection_exists(name) and "modify" not in opts:
-        print(f"连接已存在: {name}(使用 api modify {name} 或 api add --modify ... 覆盖)")
+        emit(f"连接已存在: {name}(使用 api modify {name} 或 api add --modify ... 覆盖)")
         return
     conn = ApiConnection(name=name, base_url=url, api_key=key, model=model)
     if "pull" in opts:
         try:
             models = list_models(conn)
-            print(f"拉取到模型: {', '.join(models)}")
+            emit(f"拉取到模型: {', '.join(models)}")
         except ApiError as exc:
-            print(f"[警告] 拉取模型失败({exc}),仍保存连接(可后续 api pull)")
+            emit(f"[警告] 拉取模型失败({exc}),仍保存连接(可后续 api pull)")
     try:
         save_connection(conn)
-        print(f"已保存连接: {name}")
+        emit(f"已保存连接: {name}")
         if not model:
-            print("提示: 未设置默认模型,可用 api modify 设置")
+            emit("提示: 未设置默认模型,可用 api modify 设置")
     except ValueError as exc:
-        print(f"配置无效: {exc}")
+        emit(f"配置无效: {exc}")
 
 
 def _api_del(rest: list[str]) -> None:
     opts, pos = parse_args(rest)
     if not pos:
-        print("用法: api del <name> [-f]")
+        emit("用法: api del <name> [-f]")
         return
     name = pos[0]
     if "force" not in opts:
         ans = _confirm(f"确认删除连接 {name}? [y/N]: ")
         if ans.lower() not in ("y", "yes"):
-            print("已取消")
+            emit("已取消")
             return
     if delete_connection(name):
-        print(f"已删除连接: {name}")
+        emit(f"已删除连接: {name}")
     else:
-        print(f"连接不存在: {name}")
+        emit(f"连接不存在: {name}")
 
 
 def _api_test(rest: list[str]) -> None:
     opts, pos = parse_args(rest)
     if not pos:
-        print("用法: api test <name> [--timeout <秒>]")
+        emit("用法: api test <name> [--timeout <秒>]")
         return
     conn = get_connection(pos[0])
     if conn is None:
-        print(f"连接不存在: {pos[0]}")
+        emit(f"连接不存在: {pos[0]}")
         return
     timeout = float(opts.get("timeout", get_config().timeout))
-    print(f"正在测试连接: {conn.name} ({conn.base_url})…")
+    emit(f"正在测试连接: {conn.name} ({conn.base_url})…")
     try:
         test_connection(conn, timeout=timeout)
         conn.last_tested = datetime.now(timezone.utc).isoformat()
         save_connection(conn)
-        print("连接正常")
+        emit("连接正常")
     except ApiError as exc:
-        print(f"测试失败: {exc}")
+        emit(f"测试失败: {exc}")
 
 
 def _api_pull(rest: list[str]) -> None:
@@ -395,64 +396,64 @@ def _api_pull(rest: list[str]) -> None:
     if pos:
         conn = get_connection(pos[0])
         if conn is None:
-            print(f"连接不存在: {pos[0]}")
+            emit(f"连接不存在: {pos[0]}")
             return
     elif "url" in opts and "key" in opts:
         conn = ApiConnection(name="(临时)", base_url=opts["url"], api_key=opts["key"], model="")
         try:
             conn.validate()
         except ValueError as exc:
-            print(f"URL 无效: {exc}")
+            emit(f"URL 无效: {exc}")
             return
     else:
-        print("用法: api pull <name> [--set-default] | api pull --url <base_url> --key <api_key> [--timeout <秒>]")
+        emit("用法: api pull <name> [--set-default] | api pull --url <base_url> --key <api_key> [--timeout <秒>]")
         return
     timeout = float(opts.get("timeout", get_config().timeout))
     try:
         models = list_models(conn, timeout=timeout)
         for i, m in enumerate(models, 1):
-            print(f"  {i}. {m}")
+            emit(f"  {i}. {m}")
         if "set-default" in opts and models and pos:
             conn.model = models[0]
             save_connection(conn)
-            print(f"已将默认模型设为: {models[0]}")
+            emit(f"已将默认模型设为: {models[0]}")
     except ApiError as exc:
-        print(f"拉取失败: {exc}")
+        emit(f"拉取失败: {exc}")
 
 
 def _api_sync(rest: list[str]) -> None:
     opts, pos = parse_args(rest)
     if not pos:
-        print("用法: api sync <name> [--set-default]")
+        emit("用法: api sync <name> [--set-default]")
         return
     conn = get_connection(pos[0])
     if conn is None:
-        print(f"连接不存在: {pos[0]}")
+        emit(f"连接不存在: {pos[0]}")
         return
     timeout = float(opts.get("timeout", get_config().timeout))
     try:
         test_connection(conn)
         models = list_models(conn)
-        print("测试通过,模型列表:")
+        emit("测试通过,模型列表:")
         for i, m in enumerate(models, 1):
-            print(f"  {i}. {m}")
+            emit(f"  {i}. {m}")
         conn.last_tested = datetime.now(timezone.utc).isoformat()
         if "set-default" in opts and models:
             conn.model = models[0]
-            print(f"已将默认模型设为: {models[0]}")
+            emit(f"已将默认模型设为: {models[0]}")
         save_connection(conn)
     except ApiError as exc:
-        print(f"同步失败: {exc}")
+        emit(f"同步失败: {exc}")
 
 
 def _api_modify(rest: list[str]) -> None:
     opts, pos = parse_args(rest)
     if not pos:
-        print("用法: api modify <name> [--set field=value ...]")
+        emit("用法: api modify <name> [--set field=value ...]")
         return
     conn = get_connection(pos[0])
     if conn is None:
-        print(f"连接不存在: {pos[0]}")
+        emit(f"连接不存在: {pos[0]}")
         return
     sets = opts.get("set", [])
     if isinstance(sets, str):
@@ -513,7 +514,7 @@ def _modify_interactive(conn: ApiConnection) -> None:
         field, label, secret = fields[current]
         text, action = _prompt_field(label, values[field], secret)
         if action == "cancel":
-            print("已放弃修改")
+            emit("已放弃修改")
             return
         if text.startswith("/"):
             target = text[1:].lower()
@@ -521,21 +522,21 @@ def _modify_interactive(conn: ApiConnection) -> None:
             if target in names:
                 current = names[target]
                 continue
-            print(f"未知字段: {target}(可用: /url /key /model)")
+            emit(f"未知字段: {target}(可用: /url /key /model)")
             continue
         if text == "":
             text = values[field]  # 回车保留原值
         if field == "base_url" and not (
             text.startswith("http://") or text.startswith("https://")
         ):
-            print("Base URL 无效,需以 http(s):// 开头")
+            emit("Base URL 无效,需以 http(s):// 开头")
             continue
         values[field] = text
         if action == "save":
             for k, v in values.items():
                 setattr(conn, k, v)
             if _persist_connection(conn, old_name):
-                print("已保存")
+                emit("已保存")
             return
         current = (current + 1) % len(fields)
 
@@ -543,15 +544,15 @@ def _modify_interactive(conn: ApiConnection) -> None:
 def _persist_connection(conn: ApiConnection, old_name: str) -> bool:
     """保存连接;改名时校验冲突并删除旧文件。成功返回 True,失败打印原因。"""
     if not conn.name.strip():
-        print("连接名不能为空")
+        emit("连接名不能为空")
         return False
     if conn.name != old_name and connection_exists(conn.name):
-        print(f"连接已存在: {conn.name}")
+        emit(f"连接已存在: {conn.name}")
         return False
     try:
         save_connection(conn)
     except ValueError as exc:
-        print(f"配置无效: {exc}")
+        emit(f"配置无效: {exc}")
         return False
     if conn.name != old_name:
         delete_connection(old_name)
@@ -563,31 +564,31 @@ def _api_modify_set(conn: ApiConnection, sets: list[str]) -> None:
     updates: dict[str, object] = {}
     for s in sets:
         if "=" not in s:
-            print(f"非法 --set: {s}(应为 field=value)")
+            emit(f"非法 --set: {s}(应为 field=value)")
             return
         k, v = s.split("=", 1)
         if k not in ("base_url", "api_key", "model", "timeout", "models_endpoint", "name"):
-            print(f"未知字段: {k}")
+            emit(f"未知字段: {k}")
             return
         updates[k] = v
     for k, v in updates.items():
         if k == "base_url" and not (
             v.startswith("http://") or v.startswith("https://")
         ):
-            print(f"base_url 无效: {v}")
+            emit(f"base_url 无效: {v}")
             return
         if k == "timeout":
             try:
                 float(v)
             except ValueError:
-                print(f"timeout 无效: {v}")
+                emit(f"timeout 无效: {v}")
                 return
     old_name = conn.name
     for k, v in updates.items():
         setattr(conn, k, float(v) if k == "timeout" else v)
     if not _persist_connection(conn, old_name):
         return
-    print(f"已更新连接: {conn.name}")
+    emit(f"已更新连接: {conn.name}")
 
 
 _COMMANDS: dict[str, tuple[str, Callable[[list[str]], None]]] = {
@@ -787,7 +788,7 @@ def run_shell(
     global _current_mode, _chat_session, _mode_switch_request
     _history.clear()
     mode = initial_mode
-    print(_BANNER)
+    emit(_BANNER)
     while True:
         _current_mode = mode
         if _mode_switch_request is not None:
@@ -796,7 +797,7 @@ def run_shell(
         try:
             line = _input(_prompt_for_mode(mode))
         except (EOFError, KeyboardInterrupt):
-            print("退出")
+            emit("退出")
             return
         cmd, args = parse_line(line)
         if not cmd:
@@ -813,9 +814,9 @@ def run_shell(
                 mode = "home"
                 continue
             if mode == "home":
-                print("退出")
+                emit("退出")
                 return
-            print(gray(_placeholder_msg(mode)))
+            emit(gray(_placeholder_msg(mode)))
             continue
         if mode != "home" and not escaped:
             if mode == "chat":
@@ -823,7 +824,7 @@ def run_shell(
                     _chat_session = _chat_business("new_session")()
                 _chat_business("send_message")(_chat_session, line.strip())
             else:
-                print(gray(_placeholder_msg(mode)))
+                emit(gray(_placeholder_msg(mode)))
             continue
         if args == ["--help"]:
             _print_command_help(cmd)
@@ -843,19 +844,19 @@ def run_shell(
                 if args:
                     _chat_load(args[0])
                 else:
-                    print("用法: /load <会话id|name>(用 /list 查看)")
+                    emit("用法: /load <会话id|name>(用 /list 查看)")
             elif cmd == "rename":
                 if args:
                     _chat_business("rename_session")(_chat_session, args[0])
                 else:
-                    print("用法: /rename <新名称>")
+                    emit("用法: /rename <新名称>")
             continue
         entry = _COMMANDS.get(cmd)
         if entry is None:
-            print(f"未知命令: {cmd}(输入 help 查看可用命令)")
+            emit(f"未知命令: {cmd}(输入 help 查看可用命令)")
             continue
         try:
             entry[1](args)
         except Exception:
             logger.exception("命令执行失败: %s", cmd)
-            print(f"命令执行出错: {cmd}(详情见日志)")
+            emit(f"命令执行出错: {cmd}(详情见日志)")
