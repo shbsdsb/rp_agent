@@ -25,3 +25,4 @@ def test_is_tui_flips_with_target():
         assert output.is_tui() is True
     finally:
         output.reset_emit_target()
+    assert output.is_tui() is False  # reset 恢复默认目标
