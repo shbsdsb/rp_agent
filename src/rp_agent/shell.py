@@ -92,7 +92,16 @@ def _cmd_config(args: list[str]) -> None:
     emit(f"timeout={cfg.timeout}s")
 
 
-def _cmd_reload(_args: list[str]) -> None:
+def _cmd_reload(args: list[str]) -> None:
+    if args in (["--tui"], ["--cli"]):
+        global _ui_mode, _ui_switch_request
+        target = args[0][2:]
+        if _ui_mode == target:
+            emit(f"已是 {target} 界面")
+            return
+        _ui_switch_request = target
+        emit(f"切换到 {target} 界面…")
+        return
     changed = reload_config()
     cfg = get_config()
     emit(f"配置已重载,发生变化: {changed},log_level={cfg.log_level}")
@@ -859,7 +868,31 @@ def handle_line(line: str) -> None:
 def run_shell(
     _input: Callable[[str], str] = _read_line, initial_mode: Mode = "home"
 ) -> None:
-    """交互式主循环(逐行 REPL)。"""
+    """界面分发循环:TUI(默认)与旧 REPL 之间按 _ui_switch_request 切换。"""
+    global _ui_mode, _ui_switch_request, _current_mode
+    while True:
+        _ui_switch_request = None
+        _current_mode = initial_mode
+        if _ui_mode == "tui":
+            try:
+                from rp_agent.tui import run as tui_run
+
+                tui_run(initial_mode)
+            except Exception:
+                logger.exception("TUI 运行异常,回退 REPL")
+                _run_repl(_input, initial_mode)
+        else:
+            _run_repl(_input, initial_mode)
+        if _ui_switch_request is not None:
+            _ui_mode = _ui_switch_request
+            continue
+        return
+
+
+def _run_repl(
+    _input: Callable[[str], str] = _read_line, initial_mode: Mode = "home"
+) -> None:
+    """逐行 REPL 循环(Task 2 改造后的原 run_shell 主体)。"""
     global _current_mode, _chat_session, _mode_switch_request, _quit_request
     _history.clear()
     _quit_request = False

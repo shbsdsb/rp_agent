@@ -13,6 +13,9 @@ def _reset_shell_state():
     shell_mod._current_mode = "home"
     shell_mod._mode_switch_request = None
     shell_mod._quit_request = False
+    # REPL 相关测试统一走 cli 分支(默认 tui 会在非 tty 下启动全屏 TUI 阻塞等待键盘)
+    shell_mod._ui_mode = "cli"
+    shell_mod._ui_switch_request = None
     yield
 
 
@@ -776,3 +779,45 @@ def test_handle_line_switches_mode_and_quits(capsys):
 def test_handle_line_unknown_command_emits(capsys):
     handle_line("foobar")
     assert "未知命令" in capsys.readouterr().out
+
+
+def test_reload_ui_switch_and_idempotent(capsys):
+    import rp_agent.shell as shell_mod
+
+    # 默认 TUI;reload --tui 幂等
+    shell_mod._ui_mode = "tui"
+    shell_mod._ui_switch_request = None
+    handle_line("reload --tui")
+    assert shell_mod._ui_switch_request is None
+    assert "已是 tui 界面" in capsys.readouterr().out
+
+    # reload --cli 请求切换
+    handle_line("reload --cli")
+    assert shell_mod._ui_switch_request == "cli"
+
+    # 已在 cli 时 reload --cli 幂等
+    shell_mod._ui_mode = "cli"
+    shell_mod._ui_switch_request = None
+    handle_line("reload --cli")
+    assert shell_mod._ui_switch_request is None
+    assert "已是 cli 界面" in capsys.readouterr().out
+
+    # reload 无参数仍是热重载配置
+    handle_line("reload")
+    assert "配置已重载" in capsys.readouterr().out
+
+
+def test_dispatch_loop_switches_ui(monkeypatch, capsys):
+    import rp_agent.shell as shell_mod
+
+    calls: list[str] = []
+    real_tui_run = None
+    monkeypatch.setattr(shell_mod, "_ui_mode", "cli")
+    # 模拟:第一次跑 REPL 时注入 reload --tui + exit,应切到 tui 后真正退出
+    monkeypatch.setattr(
+        "rp_agent.tui.run",
+        lambda initial_mode: calls.append(f"tui:{initial_mode}"),
+    )
+    # 用注入输入:cli 模式跑 REPL,输入 reload --tui 后退出
+    shell_mod.run_shell(_feed(["reload --tui", "exit"]))
+    assert calls == ["tui:home"]  # 分发循环:cli → 切 tui → 跑 tui.run → tui 内 exit → break
