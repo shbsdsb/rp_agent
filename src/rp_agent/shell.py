@@ -630,6 +630,10 @@ SHELL_STYLE = Style.from_dict(
         "param": "ansibrightcyan",  # 有效参数:亮天蓝
         "opt": "ansibrightblack",  # 有效选项:灰色(prompt_toolkit 无 ansigray,用亮黑)
         "chat-prompt": "#FFE066 bold",  # chat 模式输入前缀:暖黄(与 assistant> 的 #66AAFF 区分)
+        "status": "bg:#1a1a2e #e0e0e0",  # 状态栏:深底浅字
+        "status-mode": "ansiyellow bold",
+        "status-dim": "ansibrightblack",
+        "hint": "ansibrightblack",
         # 其他 token(class:default)不定义:保持终端默认白色
     }
 )
