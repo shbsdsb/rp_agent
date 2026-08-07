@@ -295,10 +295,10 @@ def run_shell(
     mode = initial_mode
     emit(_BANNER)
     while True:
-        _current_mode = mode
         if _mode_switch_request is not None:
             mode = _mode_switch_request
             _mode_switch_request = None
+        _current_mode = mode
         try:
             line = _input(_prompt_for_mode(mode))
         except (EOFError, KeyboardInterrupt):
@@ -822,10 +822,10 @@ def _run_repl(
     mode = initial_mode
     emit(_BANNER)
     while True:
-        _current_mode = mode
         if _mode_switch_request is not None:
             mode = _mode_switch_request
             _mode_switch_request = None
+        _current_mode = mode
         try:
             line = _input(_prompt_for_mode(mode))
         except (EOFError, KeyboardInterrupt):
