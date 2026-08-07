@@ -45,6 +45,9 @@ _CHAT_COMMANDS: set[str] = {"new", "list", "load", "rename"}
 _current_mode: Mode = "home"
 _chat_session = None  # ChatSession | None,运行时赋值(避免循环 import)
 _mode_switch_request: Mode | None = None  # chat load 后请求切换模式
+_quit_request = False
+_ui_mode: Literal["tui", "cli"] = "tui"  # 默认全屏 TUI(Task 5 消费)
+_ui_switch_request: Literal["tui", "cli"] | None = None  # 界面切换请求
 _BANNER = "rp-agent 交互式 shell —— 输入 help 查看可用命令;chat/rp/agent 进入 AI 工作模式,模式内 / 转义调用命令,/exit 返回 home,exit 退出"
 _history: list[str] = []
 
@@ -776,87 +779,100 @@ def _read_line(prompt: str) -> str:
     return input(prompt)
 
 
+def handle_line(line: str) -> None:
+    """执行一行输入(与界面无关):命令分派/模式切换/对话消息。
+
+    REPL 与 TUI 共用:模式变化写 _mode_switch_request(并同步 _current_mode,
+    便于 REPL/TUI 在消费循环中读取);home 模式 exit 置 _quit_request。
+    """
+    global _current_mode, _chat_session, _mode_switch_request, _quit_request
+    cmd, args = parse_line(line)
+    if not cmd:
+        return
+    if line.strip() not in _history:
+        _history.append(line.strip())
+    escaped = cmd.startswith("/")
+    if escaped:
+        cmd = cmd[1:]
+    if not cmd:
+        return
+    mode = _current_mode
+    if cmd in ("exit", "quit"):
+        if escaped and mode != "home":
+            _mode_switch_request = "home"
+            _current_mode = "home"
+            return
+        if mode == "home":
+            emit("退出")
+            _quit_request = True
+            return
+        emit(gray(_placeholder_msg(mode)))
+        return
+    if mode != "home" and not escaped:
+        if mode == "chat":
+            if _chat_session is None:
+                _chat_session = _chat_business("new_session")()
+            _chat_business("send_message")(_chat_session, line.strip())
+        else:
+            emit(gray(_placeholder_msg(mode)))
+        return
+    if args == ["--help"]:
+        _print_command_help(cmd)
+        return
+    if cmd in _MODE_COMMANDS and (cmd != "chat" or not args):
+        _mode_switch_request = _MODE_COMMANDS[cmd]
+        _current_mode = _mode_switch_request
+        if _mode_switch_request == "chat":
+            _chat_session = _chat_business("new_session")()
+        return
+    if mode != "home" and cmd in _CHAT_COMMANDS:
+        if cmd == "new":
+            _chat_session = _chat_business("new_session")()
+        elif cmd == "list":
+            _chat_business("list_sessions")()
+        elif cmd == "load":
+            if args:
+                _chat_load(args[0])
+            else:
+                emit("用法: /load <会话id|name>(用 /list 查看)")
+        elif cmd == "rename":
+            if args:
+                _chat_business("rename_session")(_chat_session, args[0])
+            else:
+                emit("用法: /rename <新名称>")
+        return
+    entry = _COMMANDS.get(cmd)
+    if entry is None:
+        emit(f"未知命令: {cmd}(输入 help 查看可用命令)")
+        return
+    try:
+        entry[1](args)
+    except Exception:
+        logger.exception("命令执行失败: %s", cmd)
+        emit(f"命令执行出错: {cmd}(详情见日志)")
+
+
 def run_shell(
     _input: Callable[[str], str] = _read_line, initial_mode: Mode = "home"
 ) -> None:
-    """交互式主循环。_input 可注入(测试用);Ctrl+C/Ctrl+D 正常退出。
-
-    模式:home 为默认;chat 为真实对话;rp/agent 仍为占位。
-    非 home 模式下,非 / 开头的输入在 chat 模式视为对话消息,其余模式打印占位报错;
-    / 开头的输入剥掉 / 后走正常命令分派,其中 /exit 返回 home(home 模式 /exit 退出 shell)。
-    """
-    global _current_mode, _chat_session, _mode_switch_request
+    """交互式主循环(逐行 REPL)。"""
+    global _current_mode, _chat_session, _mode_switch_request, _quit_request
     _history.clear()
+    _quit_request = False
     mode = initial_mode
     emit(_BANNER)
     while True:
-        _current_mode = mode
         if _mode_switch_request is not None:
             mode = _mode_switch_request
             _mode_switch_request = None
+        _current_mode = mode
         try:
             line = _input(_prompt_for_mode(mode))
         except (EOFError, KeyboardInterrupt):
             emit("退出")
             return
-        cmd, args = parse_line(line)
-        if not cmd:
-            continue
-        if line.strip() not in _history:
-            _history.append(line.strip())
-        escaped = cmd.startswith("/")
-        if escaped:
-            cmd = cmd[1:]
-        if not cmd:
-            continue
-        if cmd in ("exit", "quit"):
-            if escaped and mode != "home":
-                mode = "home"
-                continue
-            if mode == "home":
-                emit("退出")
-                return
-            emit(gray(_placeholder_msg(mode)))
-            continue
-        if mode != "home" and not escaped:
-            if mode == "chat":
-                if _chat_session is None:
-                    _chat_session = _chat_business("new_session")()
-                _chat_business("send_message")(_chat_session, line.strip())
-            else:
-                emit(gray(_placeholder_msg(mode)))
-            continue
-        if args == ["--help"]:
-            _print_command_help(cmd)
-            continue
-        if cmd in _MODE_COMMANDS and (cmd != "chat" or not args):
-            mode = _MODE_COMMANDS[cmd]
-            if mode == "chat":
-                # 每次进入 chat 都新建会话(用当前默认连接),不复用旧会话
-                _chat_session = _chat_business("new_session")()
-            continue
-        if mode != "home" and cmd in _CHAT_COMMANDS:
-            if cmd == "new":
-                _chat_session = _chat_business("new_session")()
-            elif cmd == "list":
-                _chat_business("list_sessions")()
-            elif cmd == "load":
-                if args:
-                    _chat_load(args[0])
-                else:
-                    emit("用法: /load <会话id|name>(用 /list 查看)")
-            elif cmd == "rename":
-                if args:
-                    _chat_business("rename_session")(_chat_session, args[0])
-                else:
-                    emit("用法: /rename <新名称>")
-            continue
-        entry = _COMMANDS.get(cmd)
-        if entry is None:
-            emit(f"未知命令: {cmd}(输入 help 查看可用命令)")
-            continue
-        try:
-            entry[1](args)
-        except Exception:
-            logger.exception("命令执行失败: %s", cmd)
-            emit(f"命令执行出错: {cmd}(详情见日志)")
+        handle_line(line)
+        if _quit_request:
+            return
+
+

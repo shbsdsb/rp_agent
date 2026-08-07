@@ -1,7 +1,7 @@
 import pytest
 
 from rp_agent.api.store import get_connection
-from rp_agent.shell import parse_line, run_shell
+from rp_agent.shell import handle_line, parse_line, run_shell
 
 
 @pytest.fixture(autouse=True)
@@ -754,3 +754,23 @@ def test_shell_api_list_default_deleted_no_warning(
     out = capsys.readouterr().out
     assert "*" not in out
     assert "读取 JSON 失败" not in caplog.text
+
+
+def test_handle_line_switches_mode_and_quits(capsys):
+    import rp_agent.shell as shell_mod
+
+    handle_line("chat")
+    # handle_line 只写切换请求,模式由 run_shell/TUI 消费循环应用
+    assert shell_mod._mode_switch_request == "chat"
+    # 非 home 模式 /exit 回 home
+    handle_line("/exit")
+    assert shell_mod._mode_switch_request == "home"
+    # home 模式 exit 置退出信号
+    shell_mod._mode_switch_request = None
+    handle_line("exit")
+    assert shell_mod._quit_request is True
+
+
+def test_handle_line_unknown_command_emits(capsys):
+    handle_line("foobar")
+    assert "未知命令" in capsys.readouterr().out
