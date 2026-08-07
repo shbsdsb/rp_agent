@@ -13,7 +13,7 @@ AI 角色扮演 agent 平台(长期愿景:取代 SillyTavern 的本地独立工�
 
 ```bash
 uv sync                 # 安装依赖(首次/依赖变更后)
-uv run rp-agent shell       # 进入交互式 shell(主入口)
+uv run rp-agent shell       # 进入交互式 shell(主入口;默认全屏 TUI,reload --cli 切旧 REPL)
 uv run rp-agent chat        # 直接进入 chat 模式(真实 AI 对话)
 uv run rp-agent --watch hello  # 开发热重载(.py 重启 / config 热生效)
 uv run rp-agent --version   # 版本
@@ -25,7 +25,8 @@ uv add <pkg>            # 添加依赖(必须用 uv;添加前用 ask 询问用�
 ## Architecture
 
 - `src/rp_agent/cli.py` — Typer 入口,唯一命令注册点(hello/shell/chat/rp/agent)
-- `src/rp_agent/shell.py` — 交互 REPL:`parse_line`/`run_shell`(`initial_mode: Mode`,Mode = home/chat/rp/agent)、`_COMMANDS` 命令表、`ShellLexer`(prompt_toolkit 实时着色:有效命令黄/有效参数亮天蓝/有效选项灰,其余白)、`ShellCompleter`(Tab 补全:命令/子命令/选项/连接名/会话名);`_cmd_api` 命令集(list/get/add/del/test/pull/sync/modify/use/set,`api <name> -m` 等效 modify,`api use` 设默认连接)、`_cmd_chat` 命令集(list/get/load/rename)
+- `src/rp_agent/shell.py` — 交互 REPL:`parse_line`/`run_shell`(`initial_mode: Mode`,Mode = home/chat/rp/agent)、`_COMMANDS` 命令表、`ShellLexer`(prompt_toolkit 实时着色:有效命令黄/有效参数亮天蓝/有效选项灰,其余白)、`ShellCompleter`(Tab 补全:命令/子命令/选项/连接名/会话名);`_cmd_api` 命令集(list/get/add/del/test/pull/sync/modify/use/set,`api <name> -m` 等效 modify,`api use` 设默认连接)、`_cmd_chat` 命令集(list/get/load/rename);`reload --tui/--cli` 运行中切换界面(run_shell 分发循环,异常回退旧 REPL)
+- `src/rp_agent/tui.py` — 全屏 TUI 三区布局(状态栏/可滚动输出区/输入框,`_tail_offset` 距末尾偏移滚动回看,绕开锚点机制);`src/rp_agent/output.py` — emit 统一输出回调(REPL 落 stdout,TUI 由 `set_emit_target` 重定向到输出区,`is_tui` 供 spinner 降级)
 - `src/rp_agent/api/` — API 连接链路:`models.py`(`ApiConnection` + `mask_key`)、`store.py`(data/api/ 持久化 + 默认连接 `get_default_name`)、`client.py`(`chat`/`test_connection`/`list_models`,OpenAI 兼容 urllib)、`args.py`(参数解析,长/短选项)
 - `src/rp_agent/core/` — 业务模式:`chat.py`(真实 AI 对话:多轮上下文 + 会话持久化 + `assistant>` 前缀,缺连接时降级)、`session.py`(`ChatSession` 模型 + 持久化到 data/chats/)、`rp.py` / `agent.py`(模式占位,进 shell 指定 initial_mode)
 - `src/rp_agent/storage.py` — data 目录管理/JSON 读写(原子)/`safe_path` 防穿越

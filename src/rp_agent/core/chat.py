@@ -7,6 +7,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from rp_agent import output
 from rp_agent.api.client import ApiError, chat
 from rp_agent.api.store import get_connection, get_default_connection, list_connections
 from rp_agent.core import session as session_store
@@ -180,7 +181,10 @@ def session_names() -> list[str]:
 
 @contextmanager
 def _spinner(label: str = "正在请求"):
-    """点阵 spinner:tty 下后台线程 100ms 推进帧,非 tty 退化为静态一行。"""
+    """点阵 spinner:tty 下后台线程 100ms 推进帧,非 tty 退化为静态一行,TUI 下静默。"""
+    if output.is_tui():
+        yield  # TUI 下静默:全屏渲染自有刷新,不打印占位
+        return
     if not sys.stdin.isatty():
         emit(f"{label}…")
         yield

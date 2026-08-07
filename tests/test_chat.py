@@ -240,3 +240,19 @@ def test_session_names_lists_name_or_id(monkeypatch, tmp_path):
     names = session_names()
     assert "甲" in names
     assert unnamed.id in names  # 未命名显示 id
+
+
+def test_spinner_silent_in_tui(capsys, monkeypatch):
+    from rp_agent import output
+    from rp_agent.core import chat
+
+    collected: list[str] = []
+    output.set_emit_target(collected.append)  # 模拟 TUI(emit 目标非默认 print)
+    try:
+        with chat._spinner():
+            pass
+    finally:
+        output.reset_emit_target()
+    # TUI 下 spinner 静默:不 emit 任何内容(改造前非 tty 分支会 emit "正在请求…")
+    assert collected == []
+    assert capsys.readouterr().out == ""
