@@ -1060,5 +1060,36 @@ def test_dispatch_loop_preserves_mode_across_ui_switch(monkeypatch, capsys):
     assert shell_mod._current_mode == "chat"   # 切到 REPL 后模式保留(此前重置为 home)
 
 
+# --- Bug#9:rp/agent 占位模式下 chat 会话命令越权 ---
+
+def test_placeholder_modes_block_chat_commands(capsys, monkeypatch, tmp_path):
+    """rp/agent 占位模式下 /list /new /load /rename 不得操作 chat 会话(此前越权执行)。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    run_shell(
+        _feed(
+            [
+                "chat",
+                "/new",     # chat 模式内新建会话(合法)
+                "/exit",
+                "rp",
+                "/list",    # 占位模式:应拦截
+                "/new",     # 占位模式:应拦截
+                "/exit",
+                "agent",
+                "/load",    # 占位模式:应拦截
+                "/rename",  # 占位模式:应拦截
+                "/exit",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    assert out.count("新会话") == 2            # 仅 chat 进入 + chat 内 /new;占位模式 /new 不再越权
+    assert out.count("仅 chat 模式可用") == 4  # rp:/list /new,agent:/load /rename
+    assert "已加载会话" not in out             # 占位模式 /load 未加载
+
+
+
 
 

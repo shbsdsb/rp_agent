@@ -160,7 +160,7 @@ def _cmd_help(args: list[str]) -> None:
 
 def _cmd_api(args: list[str]) -> None:
     if not args:
-        emit(f"用法: {_colorize_usage('api <list|get|add|del|test|pull|sync|modify> ...')}")
+        emit(f"用法: {_colorize_usage('api <list|get|add|del|test|pull|sync|modify|use|set> ...')}")
         return
     sub = args[0]
     try:
@@ -855,6 +855,10 @@ def handle_line(line: str) -> None:
             _chat_session = _chat_business("new_session")()
         return
     if mode != "home" and cmd in _CHAT_COMMANDS:
+        if mode != "chat":
+            # rp/agent 占位模式:chat 会话命令不得越权执行,明确提示
+            emit(f"/{cmd} 仅 chat 模式可用")
+            return
         if cmd == "new":
             _chat_session = _chat_business("new_session")()
         elif cmd == "list":
