@@ -916,3 +916,149 @@ def test_tui_sync_mode_clear_on_match_is_noop():
     assert tui._sync_mode_clear("rp") is False
     assert len(tui._output_lines) == 1
     assert tui._current_mode_snapshot == "rp"
+
+
+# --- Bug#1:chat load 带参路径须同步 _current_mode(TUI 不消费 _mode_switch_request) ---
+
+def test_chat_load_syncs_current_mode(capsys, monkeypatch, tmp_path):
+    """TUI 语义:chat load <id> 后 _current_mode 必须立即切到 chat(此前只写
+    _mode_switch_request,TUI 无人消费 → 状态栏 [home] + 后续输入按 home 分派)。"""
+    import rp_agent.shell as shell_mod
+    from rp_agent.core import session as session_store
+
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    ses = session_store.create_session(connection="")
+    session_store.save_session(ses)
+
+    handle_line(f"chat load {ses.id}")
+    assert shell_mod._current_mode == "chat"          # 此前失败:仍 "home"
+    assert shell_mod._chat_session is not None
+    assert shell_mod._mode_switch_request == "chat"
+
+    # 随后的输入按 chat 消息发送,而非 home 命令(hello 命令会打印"骨架已就绪")
+    capsys.readouterr()
+    handle_line("hello")
+    out = capsys.readouterr().out
+    assert "骨架已就绪" not in out
+
+
+# --- Bug#2:交互 modify 的 /url、/key 字段跳转 token 与字段名不匹配 ---
+
+def test_modify_interactive_slash_url_jumps_to_base_url(monkeypatch, capsys, tmp_path):
+    """交互 modify 中 /url 应跳转到 Base URL 字段(此前匹配字典键是 base_url,
+    token url 永远落入"未知字段",若跳转失效 URL 会被写进 name 字段)。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    responses = iter(
+        [
+            ("/url", "normal"),          # Name 字段:输入 /url 应跳到 Base URL
+            ("https://new/v1", "save"),  # Base URL 字段:新值 + 保存
+        ]
+    )
+    monkeypatch.setattr(
+        "rp_agent.shell._prompt_field",
+        lambda _l, _c, _s: next(responses),
+    )
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api modify d",
+                "api get d",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    conn = get_connection("d")
+    assert conn is not None and conn.name == "d"          # 跳转失效时 URL 会被写进 name
+    assert conn.base_url == "https://new/v1"              # 跳转失效时 base_url 不变
+    assert "未知字段" not in out
+
+
+def test_modify_interactive_slash_key_jumps_to_api_key(monkeypatch, capsys, tmp_path):
+    """交互 modify 中 /key 应跳转到 API Key 字段。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    responses = iter(
+        [
+            ("/key", "normal"),        # Name 字段:输入 /key 应跳到 API Key
+            ("newkey", "save"),        # API Key 字段:新值 + 保存
+        ]
+    )
+    monkeypatch.setattr(
+        "rp_agent.shell._prompt_field",
+        lambda _l, _c, _s: next(responses),
+    )
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api modify d",
+                "api get d",
+                "exit",
+            ]
+        )
+    )
+    out = capsys.readouterr().out
+    conn = get_connection("d")
+    assert conn is not None and conn.name == "d"
+    assert conn.api_key == "newkey"
+    assert "未知字段" not in out
+
+
+# --- Bug#3:api sync --timeout 解析了但未传给 test_connection/list_models ---
+
+def test_api_sync_passes_timeout(monkeypatch, capsys, tmp_path):
+    """api sync <name> --timeout N 的 N 应传给 test_connection 与 list_models
+    (此前两处调用都不带 timeout,静默走 conn.timeout 默认 120s)。"""
+    monkeypatch.setattr("rp_agent.storage.DATA_DIR", tmp_path)
+    monkeypatch.setattr("rp_agent.api.store.API_DIR", tmp_path / "api")
+    received: dict[str, object] = {}
+
+    def fake_test(conn, timeout=None):
+        received["test"] = timeout
+
+    def fake_models(conn, timeout=None):
+        received["models"] = timeout
+        return ["m1"]
+
+    monkeypatch.setattr("rp_agent.shell.test_connection", fake_test)
+    monkeypatch.setattr("rp_agent.shell.list_models", fake_models)
+    run_shell(
+        _feed(
+            [
+                "api add --name d --url https://x/v1 --key k --model m",
+                "api sync d --timeout 5",
+                "exit",
+            ]
+        )
+    )
+    assert received == {"test": 5.0, "models": 5.0}
+
+
+# --- 观察项#5:run_shell 每轮重置 _current_mode → 界面切换丢失当前模式 ---
+
+def test_dispatch_loop_preserves_mode_across_ui_switch(monkeypatch, capsys):
+    """TUI 内进入 chat 模式后 reload --cli 切到 REPL,模式应保留 chat(此前
+    run_shell 每轮 _current_mode = initial_mode 重置,切回后掉回 home)。"""
+    import rp_agent.shell as shell_mod
+
+    calls: list[str] = []
+
+    def fake_tui_run(mode):
+        calls.append(f"tui:{mode}")
+        # 模拟 TUI 内用户操作:进入 chat 模式后 reload --cli
+        shell_mod._current_mode = "chat"
+        shell_mod._ui_switch_request = "cli"
+
+    monkeypatch.setattr(shell_mod, "_ui_mode", "tui")
+    monkeypatch.setattr("rp_agent.tui.run", fake_tui_run)
+    shell_mod.run_shell(_feed(["exit"]))
+    assert calls == ["tui:home"]               # 首轮仍以 initial_mode 进入 TUI
+    assert shell_mod._current_mode == "chat"   # 切到 REPL 后模式保留(此前重置为 home)
+
+
+
+

@@ -263,11 +263,15 @@ def _dispatch_chat(sub: str, rest: list[str]) -> None:
 
 
 def _chat_load(key: str) -> None:
-    global _chat_session, _mode_switch_request
+    global _chat_session, _mode_switch_request, _current_mode
     loaded = _chat_business("load_into_session")(key)
     if loaded is not None:
         _chat_session = loaded
         _mode_switch_request = "chat"
+        # TUI 不消费 _mode_switch_request(仅 _run_repl 消费),状态栏/输入分派/
+        # _sync_mode_clear 都读 _current_mode,必须在此直接同步,否则 TUI 下
+        # chat load 后界面仍停在 home(输入被按 home 命令分派)。
+        _current_mode = "chat"
 
 
 def _chat_rename(rest: list[str]) -> None:
@@ -450,8 +454,8 @@ def _api_sync(rest: list[str]) -> None:
         return
     timeout = float(opts.get("timeout", get_config().timeout))
     try:
-        test_connection(conn)
-        models = list_models(conn)
+        test_connection(conn, timeout=timeout)
+        models = list_models(conn, timeout=timeout)
         emit("测试通过,模型列表:")
         for i, m in enumerate(models, 1):
             emit(f"  {i}. {m}")
@@ -516,6 +520,8 @@ def _prompt_field(label: str, current: str, secret: bool) -> tuple[str, str]:
 
 def _modify_interactive(conn: ApiConnection) -> None:
     """交互式编辑:nano 风格(Ctrl+O 保存 / Ctrl+X 放弃)+ 字段跳转。"""
+    # 跳转短名 → 字段名(/url /key 是 UI token,字段键是 base_url/api_key)
+    _SLASH_ALIASES = {"url": "base_url", "key": "api_key"}
     fields = [
         ("name", "Name", False),
         ("base_url", "Base URL", False),
@@ -539,8 +545,9 @@ def _modify_interactive(conn: ApiConnection) -> None:
         if text.startswith("/"):
             target = text[1:].lower()
             names = {f[0]: i for i, f in enumerate(fields)}
-            if target in names:
-                current = names[target]
+            field_name = _SLASH_ALIASES.get(target, target)
+            if field_name in names:
+                current = names[field_name]
                 continue
             emit(f"未知字段: {target}(可用: /url /key /model)")
             continue
@@ -877,21 +884,29 @@ def handle_line(line: str) -> None:
 def run_shell(
     _input: Callable[[str], str] = _read_line, initial_mode: Mode = "home"
 ) -> None:
-    """界面分发循环:TUI(默认)与旧 REPL 之间按 _ui_switch_request 切换。"""
+    """界面分发循环:TUI(默认)与旧 REPL 之间按 _ui_switch_request 切换。
+
+    首轮以 initial_mode 启动;此后保留 _current_mode 跨界面切换(chat 模式
+    reload --cli 切到 REPL 不应掉回 home),避免模式丢失造成状态错乱。
+    """
     global _ui_mode, _ui_switch_request, _current_mode
+    first = True
     while True:
         _ui_switch_request = None
-        _current_mode = initial_mode
+        if first:
+            _current_mode = initial_mode
+            first = False
+        mode = _current_mode
         if _ui_mode == "tui":
             try:
                 from rp_agent.tui import run as tui_run
 
-                tui_run(initial_mode)
+                tui_run(mode)
             except Exception:
                 logger.exception("TUI 运行异常,回退 REPL")
-                _run_repl(_input, initial_mode)
+                _run_repl(_input, mode)
         else:
-            _run_repl(_input, initial_mode)
+            _run_repl(_input, mode)
         if _ui_switch_request is not None:
             _ui_mode = _ui_switch_request
             continue
