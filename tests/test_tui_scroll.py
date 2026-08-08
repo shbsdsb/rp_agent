@@ -29,9 +29,12 @@ def test_clamp_offset_bounds():
 
 
 def test_append_stores_lines_and_follows_tail(capsys):
+    import rp_agent.shell as shell_mod
+
     tui._output_lines.clear()
     tui._tail_offset = 0
     tui._current_mode_snapshot = "home"
+    shell_mod._current_mode = "home"  # _append 内 _sync_mode_clear 依赖 shell 状态匹配
     output.set_emit_target(tui._append)
     try:
         tui._append("第一行")
@@ -48,9 +51,12 @@ def _fmt_text(fmt) -> str:
 
 
 def test_append_respects_max_lines():
+    import rp_agent.shell as shell_mod
+
     tui._output_lines.clear()
     tui._tail_offset = 0
     tui._current_mode_snapshot = "home"
+    shell_mod._current_mode = "home"
     for i in range(tui.MAX_LINES + 10):
         tui._append(f"行{i}")
     assert len(tui._output_lines) == tui.MAX_LINES
@@ -58,9 +64,12 @@ def test_append_respects_max_lines():
 
 
 def test_append_keeps_offset_when_scrolled_back():
+    import rp_agent.shell as shell_mod
+
     tui._output_lines.clear()
     tui._tail_offset = 3  # 用户回看中
     tui._current_mode_snapshot = "home"
+    shell_mod._current_mode = "home"
     for i in range(5):
         tui._append(f"行{i}")
     assert tui._tail_offset == 3  # 回看时新行不打断
@@ -106,3 +115,16 @@ def test_scroll_changes_rendered_content():
     ctrl.create_content(80, None)  # 新帧探测
     after = "".join(s[1] for s in ctrl.create_content(80, 26).get_line(0))
     assert after == "第0行"  # tail=10 → slice(0,20) 首行;修复前帧内缓存旧文本 → 仍"第4行"
+
+
+# --- 观察项#8:_go_top 硬编码 10,应基于实际渲染高度 ---
+
+def test_top_offset_uses_render_height():
+    """滚动到顶的 tail_offset 应基于真实渲染高度(此前 _go_top 硬编码 10,
+    大视口下 Home 只显示前 10 行,下方留白)。"""
+    from rp_agent.tui import top_offset
+
+    assert top_offset(total=100, height=30) == 70  # 显示前 30 行(旧 10 时 offset=90 → 只显示前 10 行)
+    assert top_offset(total=5, height=30) == 0     # 内容不足一屏 → 贴底显示全部
+    assert top_offset(total=100, height=10) == 90  # 与旧行为一致(高度恰好 10 时)
+

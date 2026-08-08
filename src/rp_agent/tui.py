@@ -49,6 +49,11 @@ def clamp_offset(total: int, height: int, offset: int) -> int:
     return max(0, min(offset, max(0, total - height)))
 
 
+def top_offset(total: int, height: int) -> int:
+    """滚动到顶所需的 tail_offset:显示最前 height 行(不足一屏时贴底=0)。"""
+    return clamp_offset(total, height, total)
+
+
 def _sync_mode_clear(mode: str) -> bool:
     """模式变化 → 清空输出区。返回是否发生了清空(惰性 clear 与 _accept 主动 clear 共用)。"""
     global _tail_offset, _current_mode_snapshot
@@ -195,7 +200,7 @@ def run(initial_mode: str = "home") -> None:
         @kb.add("home")
         def _go_top(event):
             global _tail_offset
-            _tail_offset = clamp_offset(len(_output_lines), 10, len(_output_lines))
+            _tail_offset = top_offset(len(_output_lines), _render_height)
             _invalidate()
 
         @kb.add("end")
