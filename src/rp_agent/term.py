@@ -26,9 +26,13 @@ def supports_color() -> bool:
             kernel32 = ctypes.windll.kernel32
             handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
             mode = ctypes.c_ulong()
-            if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
-                # ENABLE_VIRTUAL_TERMINAL_PROCESSING
-                kernel32.SetConsoleMode(handle, mode.value | 0x0004)
+            # GetConsoleMode 失败(句柄无效/非控制台)→ 无法确认 VT 支持,视为不支持颜色
+            if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+                return False
+            # ENABLE_VIRTUAL_TERMINAL_PROCESSING;启用失败(legacy 控制台不支持该标志)
+            # 仍声称支持颜色会向不支持 VT 的终端输出 ANSI 乱码,故同样视为不支持
+            if not kernel32.SetConsoleMode(handle, mode.value | 0x0004):
+                return False
         except (AttributeError, OSError):
             return False
     return True
