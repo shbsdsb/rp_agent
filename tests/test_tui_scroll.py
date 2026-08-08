@@ -64,3 +64,22 @@ def test_append_keeps_offset_when_scrolled_back():
     for i in range(5):
         tui._append(f"行{i}")
     assert tui._tail_offset == 3  # 回看时新行不打断
+
+
+def test_output_control_preferred_height_reflects_content():
+    """HSplit 高度探测(preferred_height)应返回真实内容行数,而非 1。
+
+    根因:preferred_height 内部以 create_content(width, None) 探测,
+    旧实现 h = height or 1 只渲染最后 1 行 → preferred 恒为 1 → 输出区被压到极小。
+    """
+    import rp_agent.shell as shell_mod
+
+    tui._output_lines.clear()
+    tui._tail_offset = 0
+    tui._current_mode_snapshot = "home"
+    shell_mod._current_mode = "home"
+    for i in range(10):
+        tui._append(f"第{i}行")
+    ctrl = tui.OutputControl()
+    ph = ctrl.preferred_height(width=80, max_available_height=50, wrap_lines=False, get_line_prefix=None)
+    assert ph == 10  # 修复前为 1

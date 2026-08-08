@@ -19,3 +19,27 @@ def test_setup_idempotent():
         h for h in logger.handlers if type(h) is logging.StreamHandler
     ]
     assert len(stream_handlers) == 1
+
+
+def test_install_emit_handler_routes_logs_to_emit(capsys):
+    """TUI 下安装 emit handler 后,日志走 emit 而非 stderr。"""
+    from rp_agent.logging_setup import install_emit_handler, uninstall_emit_handler
+
+    collected: list[str] = []
+    install_emit_handler(collected.append)
+    try:
+        logging.getLogger("rp_agent").info("tui-log")
+    finally:
+        uninstall_emit_handler()
+    assert any("tui-log" in line for line in collected)
+    assert capsys.readouterr().err == ""  # stderr 无输出
+
+
+def test_uninstall_emit_handler_restores_stderr(capsys):
+    """卸载后日志恢复走 stderr。"""
+    from rp_agent.logging_setup import install_emit_handler, uninstall_emit_handler
+
+    install_emit_handler(lambda s: None)
+    uninstall_emit_handler()
+    logging.getLogger("rp_agent").info("restored-log")
+    assert "restored-log" in capsys.readouterr().err

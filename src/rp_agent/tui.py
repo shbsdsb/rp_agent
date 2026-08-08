@@ -14,6 +14,7 @@ from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.mouse_events import MouseEventType
 
 from rp_agent import output
+from rp_agent.logging_setup import install_emit_handler, uninstall_emit_handler
 from rp_agent.shell import (
     SHELL_STYLE,
     ShellCompleter,
@@ -90,8 +91,14 @@ class OutputControl(FormattedTextControl):
         super().__init__(text="")
 
     def create_content(self, width: int, height: int | None):
-        h = height or 1
-        start, end = visible_slice(len(_output_lines), h, _tail_offset)
+        total = len(_output_lines)
+        if height is None:
+            # HSplit 高度探测(FormattedTextControl.preferred_height 以 height=None 调用):
+            # 渲染全部行,让布局按真实内容行数分配高度。
+            # 旧实现 h = height or 1 只渲染最后 1 行 → preferred 恒为 1 → 输出区被压到极小(显示不全)。
+            start, end = 0, total
+        else:
+            start, end = visible_slice(total, height, _tail_offset)
         # 每行是 FormattedText(style, text) 列表;渲染按文本中的 \n 切行,
         # 故行间需显式插入换行 fragment,再把各行的 style 片段平铺。
         frags: list[tuple[str, str]] = []
@@ -162,6 +169,7 @@ def run(initial_mode: str = "home") -> None:
     shell_mod._current_mode = initial_mode
     _current_mode_snapshot = initial_mode
     output.set_emit_target(_append)
+    install_emit_handler(output.emit)
     try:
         # prompt_toolkit 3.0.53:completer 是 Buffer 的参数,BufferControl 不接受
         buff = Buffer(
@@ -236,5 +244,6 @@ def run(initial_mode: str = "home") -> None:
         )
         _app.run()
     finally:
+        uninstall_emit_handler()
         output.reset_emit_target()
         _app = None
