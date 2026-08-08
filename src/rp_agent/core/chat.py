@@ -61,13 +61,17 @@ def new_session(connection: str = "") -> session_store.ChatSession:
 
 
 def send_message(s: session_store.ChatSession, text: str) -> None:
-    """发送一条用户消息:先保存 user 消息,spinner 中阻塞调用,成功后追加 assistant。"""
-    session_store.append_message(s, "user", text)
-    session_store.save_session(s)
+    """发送一条用户消息:先校验连接存在,再保存 user 消息,spinner 中阻塞调用,成功后追加 assistant。
+
+    连接不存在时不写入消息——避免"未发出却已持久化"的悬空 user 消息污染上下文
+    (重试/换连接后 AI 会收到一条无 assistant 回复的重复问题)。
+    """
     conn = get_connection(s.connection)
     if conn is None:
         emit(f"未设置连接: 请用 /api set <name> 或回 home 用 api use <name> 设置")
         return
+    session_store.append_message(s, "user", text)
+    session_store.save_session(s)
     messages: list[dict] = []
     sp = system_prompt()
     if sp:

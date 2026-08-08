@@ -68,7 +68,7 @@ def test_send_message_no_connection(monkeypatch, tmp_path, capsys):
     send_message(s, "你好")
     out = capsys.readouterr().out
     assert "未设置连接" in out
-    assert len(s.messages) == 1  # user 消息保留,无 assistant
+    assert len(s.messages) == 0  # 先检查连接再保存:未发出的消息不入库(此前悬空保存)
 
 
 def test_send_message_api_error(monkeypatch, tmp_path, capsys):
