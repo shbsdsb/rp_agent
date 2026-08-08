@@ -1,6 +1,6 @@
 # AGENTS.md — rp-agent
 
-AI 角色扮演 agent 平台(长期愿景:取代 SillyTavern 的本地独立工具)。当前:CLI + 热重载 + 储存链路 + 交互 shell + API 连接 + 真实 AI 对话(chat 会话)。
+AI 角色扮演 agent 平台(长期愿景:取代 SillyTavern 的本地独立工具)。当前:CLI + 储存链路 + 交互 shell(REPL/TUI)+ API 连接 + 真实 AI 对话(chat 会话),配置经 shell `reload` 命令热重载。
 
 ## Project
 
