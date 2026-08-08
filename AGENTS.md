@@ -7,7 +7,7 @@ AI 角色扮演 agent 平台(长期愿景:取代 SillyTavern 的本地独立工�
 - 技术栈:Python >= 3.14、UV 包管理、Typer CLI、prompt_toolkit(交互输入)、标准库 logging、pytest
 - 入口:`src/rp_agent/cli.py`(Typer app);命令:`hello`(冒烟)/ `shell`(交互 shell,主入口)/ `chat`(真实 AI 对话)/ `rp`、`agent`(模式占位);支持 `python -m rp_agent` 与 console script `rp-agent`
 - 启动脚本:`start.bat` / `start.ps1` / `start.sh`(检查 uv → uv sync → 透传参数运行 CLI);`start_ps.bat`(Windows 双击最小化启动 PowerShell 运行 shell)
-- 数据目录:`data/`(运行时数据,不入 git,统一走 `storage.py`):`api/` 连接配置、`chats/` 会话、`default_connection.json`(全局默认连接指向);默认配置:`src/rp_agent/configs/app.json`
+- 数据目录:`data/`(运行时数据,不入 git,统一走 `storage.py`):`api/` 连接配置、`chats/` 会话、`characters/` `presets/`(占位)、`default_connection.json`(全局默认连接指向)、`tui_scroll.log`(TUI 调试日志);默认配置:`src/rp_agent/configs/app.json`
 
 ## Commands
 
@@ -15,7 +15,6 @@ AI 角色扮演 agent 平台(长期愿景:取代 SillyTavern 的本地独立工�
 uv sync                 # 安装依赖(首次/依赖变更后)
 uv run rp-agent shell       # 进入交互式 shell(主入口;默认全屏 TUI,reload --cli 切旧 REPL)
 uv run rp-agent chat        # 直接进入 chat 模式(真实 AI 对话)
-uv run rp-agent --watch hello  # 开发热重载(.py 重启 / config 热生效)
 uv run rp-agent --version   # 版本
 uv run python -m rp_agent   # 模块方式运行
 uv run pytest -v            # 跑全部测试
@@ -25,14 +24,13 @@ uv add <pkg>            # 添加依赖(必须用 uv;添加前用 ask 询问用�
 ## Architecture
 
 - `src/rp_agent/cli.py` — Typer 入口,唯一命令注册点(hello/shell/chat/rp/agent)
-- `src/rp_agent/shell.py` — 交互 REPL:`parse_line`/`run_shell`(`initial_mode: Mode`,Mode = home/chat/rp/agent)、`_COMMANDS` 命令表、`ShellLexer`(prompt_toolkit 实时着色:有效命令黄/有效参数亮天蓝/有效选项灰,其余白)、`ShellCompleter`(Tab 补全:命令/子命令/选项/连接名/会话名);`_cmd_api` 命令集(list/get/add/del/test/pull/sync/modify/use/set,`api <name> -m` 等效 modify,`api use` 设全局默认连接[仅 home]、`api set` 切换当前会话连接[仅对话模式内])、`_cmd_chat` 命令集(list/get/load/rename);`reload --tui/--cli` 运行中切换界面(run_shell 分发循环,异常回退旧 REPL)
+- `src/rp_agent/shell/` — 交互 shell 包(原 shell.py 拆分):`__init__.py`(界面状态 + `parse_line`/`handle_line`/`run_shell`/`_run_repl`/`_read_line`,REPL/TUI 共享)、`commands.py`(基础命令 + `_COMMANDS` 命令表 + 子命令/选项元数据)、`api_cmds.py`(`_cmd_api` 命令集:list/get/add/del/test/pull/sync/modify/use/set,`api <name> -m` 等效 modify,`api use` 设全局默认连接[仅 home]、`api set` 切换当前会话连接[仅对话模式内];含 `_prompt_field`/`_modify_interactive` 交互编辑)、`chat_cmds.py`(`_cmd_chat` 命令集:list/get/load/rename + `_confirm` 交互确认)、`completion.py`(`ShellLexer` prompt_toolkit 实时着色:有效命令黄/有效参数亮天蓝/有效选项灰,其余白 + `ShellCompleter` Tab 补全:命令/子命令/选项/连接名/会话名 + `SHELL_STYLE`);状态与被测试 monkeypatch 的名字统一留在 `shell/__init__.py` 命名空间,子模块运行时经 `import rp_agent.shell as shell_mod` 访问;`reload --tui/--cli` 运行中切换界面(run_shell 分发循环,异常回退旧 REPL)
 - `src/rp_agent/tui.py` — 全屏 TUI 三区布局(状态栏/可滚动输出区/输入框,`_tail_offset` 距末尾偏移滚动回看,绕开锚点机制);`src/rp_agent/output.py` — emit 统一输出回调(REPL 落 stdout,TUI 由 `set_emit_target` 重定向到输出区,`is_tui` 供 spinner 降级)
 - `src/rp_agent/api/` — API 连接链路:`models.py`(`ApiConnection` + `mask_key`)、`store.py`(data/api/ 持久化 + 默认连接 `get_default_name`)、`client.py`(`chat`/`test_connection`/`list_models`,OpenAI 兼容 urllib)、`args.py`(参数解析,长/短选项)
 - `src/rp_agent/core/` — 业务模式:`chat.py`(真实 AI 对话:多轮上下文 + 会话持久化 + `assistant>` 前缀,缺连接时降级)、`session.py`(`ChatSession` 模型 + 持久化到 data/chats/)、`rp.py` / `agent.py`(模式占位,进 shell 指定 initial_mode)
 - `src/rp_agent/storage.py` — data 目录管理/JSON 读写(原子)/`safe_path` 防穿越
-- `src/rp_agent/watch.py` — `Watcher` mtime 轮询热重载(零依赖)
-- `src/rp_agent/term.py` — ANSI 颜色(黄 bold/亮天蓝/灰 + `rgb` truecolor,chat 输入/回复前缀用);`src/rp_agent/help_data.py` — help 数据表单(`HELP_ENTRIES`/`find_entry`)
-- `src/rp_agent/config.py` — `AppConfig` + 配置文件热重载(`configs/app.json`,env 覆盖);`logging_setup.py` — 标准库 logging 输出 stderr
+- `src/rp_agent/term.py` — ANSI 颜色(黄 bold/亮天蓝/灰 + `rgb` truecolor,chat 输入/回复前缀用;`supports_color` 在 Windows GetConsoleMode/SetConsoleMode 失败时返回 False);`src/rp_agent/help_data.py` — help 数据表单(`HELP_ENTRIES`/`find_entry`)
+- `src/rp_agent/config.py` — `AppConfig` + 配置文件热重载(`configs/app.json`,env 覆盖);`logging_setup.py` — 标准库 logging 输出 stderr,`install_emit_handler` 在 TUI 下把日志改道 emit 进输出区(避免污染渲染)
 - `src/rp_agent/tools/` — 工具系统:`base/tool.py`(`BaseTool`)、`mcp/`(占位);`prompts/system/` — 提示词资源(每次请求现读,不入会话)
 - `tests/` — pytest,与模块一一对应(含 test_shell/test_chat/test_session/test_shell_completer/test_shell_lexer/test_api 系列/test_client 等)
 
@@ -49,5 +47,7 @@ uv add <pkg>            # 添加依赖(必须用 uv;添加前用 ask 询问用�
 - Windows 注意:cmd/powershell 按系统代码页解析 bat,启动脚本内保持 ASCII 消息;bat 须 CRLF 换行(LF 会解析错乱);路径尾部反斜杠与引号组合会转义(用 `%~dp0.` 规避)
 
 ## Notes
+
+- 计划/复盘文档在 `docs/superpowers/`(如 `plans/2026-08-08-fullscreen-tui.md`),变更大功能前先看
 
 (留空,后续补充)
