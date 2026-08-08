@@ -17,16 +17,10 @@ uv run rp-agent hello
 uv run pytest
 ```
 
-## 热重载
+## 配置
 
 - 配置文件:`src/rp_agent/configs/app.json`(JSON),优先级:**环境变量 > 配置文件 > 默认值**
-- 开发热重载:
-
-```bash
-uv run rp-agent --watch hello
-```
-
-代码变更(.py)自动重启;配置文件变更热生效,无需重启。
+- shell 内 `reload` 命令可热重载配置;`config timeout <秒>` 可修改全局超时
 
 ## 数据存储
 
