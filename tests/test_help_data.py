@@ -50,6 +50,8 @@ def test_api_entry_mentions_use_set():
     params_text = " ".join(p for p, _ in entry["params"])
     assert "use <name>" in params_text
     assert "set <name>" in params_text
+    # usage/desc 也应列出 use/set(此前只到 modify,与实际子命令集不一致)
+    assert "use|set" in str(entry["usage"])
 
 
 def test_chat_entry_explains_subcommands():
@@ -57,3 +59,13 @@ def test_chat_entry_explains_subcommands():
     params_text = " ".join(p for p, _ in entry["params"])
     for sub in ("list", "get", "load", "rename"):
         assert sub in params_text
+
+
+def test_reload_entry_explains_ui_switch():
+    """reload 帮助须说明 --tui/--cli 界面切换(此前只有 'reload' 无参数说明)。"""
+    entry = find_entry("reload")
+    assert entry is not None
+    params_text = " ".join(p for p, _ in entry["params"])
+    assert "--tui" in params_text
+    assert "--cli" in params_text
+    assert "reload [--tui|--cli]" in str(entry["usage"])

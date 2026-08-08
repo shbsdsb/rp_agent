@@ -123,7 +123,7 @@ def shell() -> None:
 
 @app.command()
 def chat() -> None:
-    """进入 AI 聊天模式(占位,未来接入 client.chat)。"""
+    """进入 AI 聊天模式(真实 AI 对话:多轮上下文 + 会话持久化)。"""
     from rp_agent.core.chat import run
 
     run()

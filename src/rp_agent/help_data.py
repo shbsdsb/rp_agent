@@ -23,9 +23,12 @@ HELP_ENTRIES: list[dict[str, object]] = [
     {
         "command": "reload",
         "aliases": [],
-        "desc": "热重载配置",
-        "usage": "reload",
-        "params": [],
+        "desc": "热重载配置;reload --tui/--cli 运行中切换界面",
+        "usage": "reload [--tui|--cli]",
+        "params": [
+            ("--tui", "切换到全屏 TUI 界面"),
+            ("--cli", "切换到旧 REPL 界面"),
+        ],
     },
     {
         "command": "hello",
@@ -51,8 +54,8 @@ HELP_ENTRIES: list[dict[str, object]] = [
     {
         "command": "api",
         "aliases": [],
-        "desc": "API 连接管理(api list/get/add/del/test/pull/sync/modify)",
-        "usage": "api <list|get|add|del|test|pull|sync|modify> ...",
+        "desc": "API 连接管理(api list/get/add/del/test/pull/sync/modify/use/set)",
+        "usage": "api <list|get|add|del|test|pull|sync|modify|use|set> ...",
         "params": [
             ("list [-v] [--filter k=v]", "列出连接(默认连接以 * 标记)"),
             ("get <name>", "查看连接详情(密钥脱敏)"),
