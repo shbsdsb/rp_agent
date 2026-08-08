@@ -292,11 +292,19 @@ def _chat_rename(rest: list[str]) -> None:
 
 
 def _confirm(prompt: str) -> str | bool:
-    """交互确认(可被测试 monkeypatch)。TUI 下不可交互,返回 False 拒绝。"""
+    """交互确认(可被测试 monkeypatch)。TUI 下不可交互,返回 False 拒绝。
+
+    REPL 下复用 _read_line(prompt_toolkit 交互:着色/历史/补全),符合
+    "禁止裸 input()" 约定;Ctrl+C 转为"已取消"返回 False,避免冒泡崩溃。
+    """
     if is_tui():
         emit("TUI 下不可交互确认,请加 -f 参数")
         return False
-    return input(prompt).strip()
+    try:
+        return _read_line(prompt).strip()
+    except KeyboardInterrupt:
+        emit("已取消")
+        return False
 
 
 def _api_list(rest: list[str]) -> None:
@@ -938,6 +946,10 @@ def _run_repl(
             _ui_switch_request = None  # 丢弃 pending 界面切换,避免 Ctrl+C 后误入 TUI
             return
         handle_line(line)
+        if _ui_switch_request is not None:
+            # REPL 侧即时消费界面切换请求,与 TUI 侧 _accept 对称:
+            # reload --tui 后无需再 exit 即切入 TUI
+            return
         if _quit_request:
             return
 

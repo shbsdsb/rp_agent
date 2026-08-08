@@ -823,6 +823,22 @@ def test_dispatch_loop_switches_ui(monkeypatch, capsys):
     assert calls == ["tui:home"]  # 分发循环:cli → 切 tui → 跑 tui.run → tui 内 exit → break
 
 
+def test_dispatch_loop_switches_ui_immediately_in_repl(monkeypatch, capsys):
+    """REPL 下 reload --tui 应即时切换界面(此前 _run_repl 不消费
+    _ui_switch_request,须再 exit 才切;本测试验证无需额外输入)。"""
+    import rp_agent.shell as shell_mod
+
+    calls: list[str] = []
+    monkeypatch.setattr(shell_mod, "_ui_mode", "cli")
+    monkeypatch.setattr(
+        "rp_agent.tui.run",
+        lambda initial_mode: calls.append(f"tui:{initial_mode}"),
+    )
+    # 只输入 reload --tui,不再补 exit:即时切换应直接进入 TUI
+    shell_mod.run_shell(_feed(["reload --tui"]))
+    assert calls == ["tui:home"]
+
+
 # --- TUI 下交互输入降级(Important 1) ---
 
 def test_confirm_degrades_in_tui(monkeypatch):
@@ -1058,6 +1074,32 @@ def test_dispatch_loop_preserves_mode_across_ui_switch(monkeypatch, capsys):
     shell_mod.run_shell(_feed(["exit"]))
     assert calls == ["tui:home"]               # 首轮仍以 initial_mode 进入 TUI
     assert shell_mod._current_mode == "chat"   # 切到 REPL 后模式保留(此前重置为 home)
+
+
+# --- Bug#6:_confirm 裸 input() → 复用 _read_line + Ctrl+C 转"已取消" ---
+
+def test_confirm_uses_read_line_and_handles_ctrlc(monkeypatch, capsys):
+    """REPL 下 _confirm 应复用 _read_line(prompt_toolkit 交互),而非裸 input();
+    Ctrl+C 应转为"已取消"返回 False,而非冒泡崩溃。"""
+    import rp_agent.shell as shell_mod
+
+    monkeypatch.setattr("rp_agent.shell.is_tui", lambda: False)
+    # 非 TUI 下确认复用 _read_line,并传入提示文案
+    seen: list[str] = []
+    monkeypatch.setattr(
+        "rp_agent.shell._read_line",
+        lambda p: (seen.append(p), "y")[1],
+    )
+    assert shell_mod._confirm("确认删除连接 d? [y/N]: ") == "y"
+    assert seen == ["确认删除连接 d? [y/N]: "]
+    # Ctrl+C:转为"已取消"返回 False(此前 KeyboardInterrupt 冒泡崩溃)
+    def _boom(_p):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("rp_agent.shell._read_line", _boom)
+    assert shell_mod._confirm("确认? ") is False
+    assert "已取消" in capsys.readouterr().out
+
 
 
 # --- Bug#9:rp/agent 占位模式下 chat 会话命令越权 ---
