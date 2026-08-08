@@ -30,6 +30,8 @@ _tail_offset = 0  # 0 = 贴底显示最新;正数 = 向上回看 offset 行
 
 _current_mode_snapshot: str = "home"
 
+_render_height = 10  # 最近一次实际渲染的输出区高度(滚动上限用;未渲染前默认 10)
+
 
 def visible_slice(total: int, height: int, tail_offset: int) -> tuple[int, int]:
     """可见行区间 [start, end):height 可视高度,tail_offset 距末尾偏移。
@@ -73,9 +75,9 @@ def _append(text: str) -> None:
 
 
 def _scroll_by(delta: int) -> None:
-    """按 10 行步进滚动(输出区实际高度由渲染时计算,步进取固定值即可)。"""
+    """按 10 行步进滚动(上限基于最近一次实际渲染高度,内容不足一屏时 clamp 为 0)。"""
     global _tail_offset
-    _tail_offset = clamp_offset(len(_output_lines), 10, _tail_offset + delta)
+    _tail_offset = clamp_offset(len(_output_lines), _render_height, _tail_offset + delta)
     _invalidate()
 
 
@@ -91,6 +93,7 @@ class OutputControl(FormattedTextControl):
         super().__init__(text="")
 
     def create_content(self, width: int, height: int | None):
+        global _render_height
         total = len(_output_lines)
         if height is None:
             # HSplit 高度探测(FormattedTextControl.preferred_height 以 height=None 调用):
@@ -98,6 +101,7 @@ class OutputControl(FormattedTextControl):
             # 旧实现 h = height or 1 只渲染最后 1 行 → preferred 恒为 1 → 输出区被压到极小(显示不全)。
             start, end = 0, total
         else:
+            _render_height = height
             start, end = visible_slice(total, height, _tail_offset)
         # 每行是 FormattedText(style, text) 列表;渲染按文本中的 \n 切行,
         # 故行间需显式插入换行 fragment,再把各行的 style 片段平铺。
@@ -107,6 +111,9 @@ class OutputControl(FormattedTextControl):
                 frags.append(("", "\n"))
             frags.extend(_output_lines[i])
         self.text = FormattedText(frags)
+        # 关键:FormattedTextControl._fragment_cache 按 render_counter 做帧内缓存,
+        # 同帧第一次读取 self.text(探测)会缓存上帧旧切片;不清缓存则滚动后渲染仍用旧文本。
+        self._fragment_cache.clear()
         return super().create_content(width, height)
 
     def mouse_handler(self, mouse_event):

@@ -83,3 +83,26 @@ def test_output_control_preferred_height_reflects_content():
     ctrl = tui.OutputControl()
     ph = ctrl.preferred_height(width=80, max_available_height=50, wrap_lines=False, get_line_prefix=None)
     assert ph == 10  # 修复前为 1
+
+
+def test_scroll_changes_rendered_content():
+    """滚动(tail_offset 变化)后,渲染应显示新切片,而非帧内缓存的上帧旧文本。"""
+    import rp_agent.shell as shell_mod
+
+    tui._output_lines.clear()
+    tui._tail_offset = 0
+    tui._current_mode_snapshot = "home"
+    shell_mod._current_mode = "home"
+    for i in range(30):
+        tui._append(f"第{i}行")
+
+    ctrl = tui.OutputControl()
+    # 模拟一帧:先探测(帧内第一次读 self.text,命中旧值),再实际渲染
+    ctrl.create_content(80, None)
+    before = "".join(s[1] for s in ctrl.create_content(80, 26).get_line(0))
+    assert before == "第4行"  # tail=0 → slice(4,30) 首行
+
+    tui._scroll_by(10)  # 滚动(回看 10 行)
+    ctrl.create_content(80, None)  # 新帧探测
+    after = "".join(s[1] for s in ctrl.create_content(80, 26).get_line(0))
+    assert after == "第0行"  # tail=10 → slice(0,20) 首行;修复前帧内缓存旧文本 → 仍"第4行"
