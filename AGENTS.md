@@ -7,7 +7,7 @@ AI 角色扮演 agent 平台(长期愿景:取代 SillyTavern 的本地独立工�
 - 技术栈:Python >= 3.14、UV 包管理、Typer CLI、prompt_toolkit(交互输入)、标准库 logging、pytest
 - 入口:`src/rp_agent/cli.py`(Typer app);命令:`hello`(冒烟)/ `shell`(交互 shell,主入口)/ `chat`(真实 AI 对话)/ `rp`、`agent`(模式占位);支持 `python -m rp_agent` 与 console script `rp-agent`
 - 启动脚本:`start.bat` / `start.ps1` / `start.sh`(检查 uv → uv sync → 透传参数运行 CLI);`start_ps.bat`(Windows 双击最小化启动 PowerShell 运行 shell)
-- 数据目录:`data/`(运行时数据,不入 git,统一走 `storage.py`):`api/` 连接配置、`chats/` 会话;默认配置:`src/rp_agent/configs/app.json`
+- 数据目录:`data/`(运行时数据,不入 git,统一走 `storage.py`):`api/` 连接配置、`chats/` 会话、`default_connection.json`(全局默认连接指向);默认配置:`src/rp_agent/configs/app.json`
 
 ## Commands
 
@@ -25,7 +25,7 @@ uv add <pkg>            # 添加依赖(必须用 uv;添加前用 ask 询问用�
 ## Architecture
 
 - `src/rp_agent/cli.py` — Typer 入口,唯一命令注册点(hello/shell/chat/rp/agent)
-- `src/rp_agent/shell.py` — 交互 REPL:`parse_line`/`run_shell`(`initial_mode: Mode`,Mode = home/chat/rp/agent)、`_COMMANDS` 命令表、`ShellLexer`(prompt_toolkit 实时着色:有效命令黄/有效参数亮天蓝/有效选项灰,其余白)、`ShellCompleter`(Tab 补全:命令/子命令/选项/连接名/会话名);`_cmd_api` 命令集(list/get/add/del/test/pull/sync/modify/use/set,`api <name> -m` 等效 modify,`api use` 设默认连接)、`_cmd_chat` 命令集(list/get/load/rename);`reload --tui/--cli` 运行中切换界面(run_shell 分发循环,异常回退旧 REPL)
+- `src/rp_agent/shell.py` — 交互 REPL:`parse_line`/`run_shell`(`initial_mode: Mode`,Mode = home/chat/rp/agent)、`_COMMANDS` 命令表、`ShellLexer`(prompt_toolkit 实时着色:有效命令黄/有效参数亮天蓝/有效选项灰,其余白)、`ShellCompleter`(Tab 补全:命令/子命令/选项/连接名/会话名);`_cmd_api` 命令集(list/get/add/del/test/pull/sync/modify/use/set,`api <name> -m` 等效 modify,`api use` 设全局默认连接[仅 home]、`api set` 切换当前会话连接[仅对话模式内])、`_cmd_chat` 命令集(list/get/load/rename);`reload --tui/--cli` 运行中切换界面(run_shell 分发循环,异常回退旧 REPL)
 - `src/rp_agent/tui.py` — 全屏 TUI 三区布局(状态栏/可滚动输出区/输入框,`_tail_offset` 距末尾偏移滚动回看,绕开锚点机制);`src/rp_agent/output.py` — emit 统一输出回调(REPL 落 stdout,TUI 由 `set_emit_target` 重定向到输出区,`is_tui` 供 spinner 降级)
 - `src/rp_agent/api/` — API 连接链路:`models.py`(`ApiConnection` + `mask_key`)、`store.py`(data/api/ 持久化 + 默认连接 `get_default_name`)、`client.py`(`chat`/`test_connection`/`list_models`,OpenAI 兼容 urllib)、`args.py`(参数解析,长/短选项)
 - `src/rp_agent/core/` — 业务模式:`chat.py`(真实 AI 对话:多轮上下文 + 会话持久化 + `assistant>` 前缀,缺连接时降级)、`session.py`(`ChatSession` 模型 + 持久化到 data/chats/)、`rp.py` / `agent.py`(模式占位,进 shell 指定 initial_mode)
