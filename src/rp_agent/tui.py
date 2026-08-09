@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import asyncio
+
 from prompt_toolkit.application import Application
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.formatted_text import ANSI, FormattedText, to_formatted_text
@@ -31,6 +33,10 @@ _tail_offset = 0  # 0 = 贴底显示最新;正数 = 向上回看 offset 行
 _current_mode_snapshot: str = "home"
 
 _render_height = 10  # 最近一次实际渲染的输出区高度(滚动上限用;未渲染前默认 10)
+
+# TUI 请求点阵加载:当前帧字符 + 后台动画协程(_request_active 为 True 时轮询)
+_spinner_frame = " "
+_spinner_task: asyncio.Task | None = None
 
 
 def visible_slice(total: int, height: int, tail_offset: int) -> tuple[int, int]:
@@ -193,11 +199,14 @@ class OutputControl(FormattedTextControl):
 
 
 def _status_text() -> FormattedText:
+    import rp_agent.core.chat as chat_mod  # 惰性,避免循环 import
     import rp_agent.shell as shell_mod  # 惰性,避免循环 import
 
     parts: list[tuple[str, str]] = [
         ("class:status-mode", f"[{shell_mod._current_mode}]")
     ]
+    if chat_mod._request_active:
+        parts.append(("class:status-dim", f" {_spinner_frame} 正在请求…"))
     s = shell_mod._chat_session
     if s is not None:
         parts.append(("class:status-dim", f" 会话 {s.name or s.id}"))
@@ -214,6 +223,7 @@ def _accept(buff: Buffer) -> None:
     if not line.strip():
         return
     handle_line(line)
+    _maybe_start_spinner()
     if shell_mod._quit_request:
         _app.exit()
         return
@@ -229,6 +239,38 @@ def _ui_switch_request() -> bool:
     import rp_agent.shell as shell_mod
 
     return shell_mod._ui_switch_request is not None
+
+
+async def _spinner_loop() -> None:
+    """点阵加载动画:事件循环中每 0.1s 更新状态栏帧并请求重绘,直到请求完成。"""
+    global _spinner_frame
+    import rp_agent.core.chat as chat_mod
+
+    frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    i = 0
+    try:
+        while _app is not None and chat_mod._request_active:
+            _spinner_frame = frames[i % len(frames)]
+            _invalidate()
+            i += 1
+            await asyncio.sleep(0.1)
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        # 后台任务不允许抛异常(prompt_toolkit 要求),吞掉避免污染事件循环
+        pass
+
+
+def _maybe_start_spinner() -> None:
+    """请求进行中且无动画在跑时,启动点阵加载动画协程。"""
+    global _spinner_task
+    import rp_agent.core.chat as chat_mod
+
+    if _app is None or not chat_mod._request_active:
+        return
+    if _spinner_task is not None and not _spinner_task.done():
+        return
+    _spinner_task = _app.create_background_task(_spinner_loop())
 
 
 _app: Application | None = None

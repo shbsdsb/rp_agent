@@ -23,6 +23,9 @@ ASSISTANT_PREFIX = "assistant> "
 # user> 前缀色:暖黄(与输入前缀 chat> 的 #FFE066 同色系;assistant 用 #66AAFF 区分)
 USER_PREFIX = "user> "
 
+# TUI 请求进行中标志:后台线程请求期间为 True,TUI 点阵加载动画轮询它
+_request_active = False
+
 
 def system_prompt() -> str | None:
     """读 prompts/system/chat.txt;缺失/读失败返回 None(无 system 降级)。"""
@@ -63,7 +66,8 @@ def new_session(connection: str = "") -> session_store.ChatSession:
 
 
 def send_message(s: session_store.ChatSession, text: str) -> None:
-    """发送一条用户消息:先校验连接存在,再保存 user 消息,spinner 中阻塞调用,成功后追加 assistant。
+    """发送一条用户消息:TUI 下异步(立即 emit user + 后台请求,避免阻塞事件循环),
+    CLI 下同步(spinner 点阵/静态提示)。
 
     连接不存在时不写入消息——避免"未发出却已持久化"的悬空 user 消息污染上下文
     (重试/换连接后 AI 会收到一条无 assistant 回复的重复问题)。
@@ -75,7 +79,16 @@ def send_message(s: session_store.ChatSession, text: str) -> None:
     session_store.append_message(s, "user", text)
     session_store.save_session(s)
     if output.is_tui():
+        # TUI:user 立即渲染;API 调用放后台线程,主事件循环保持运转
+        # (同步阻塞会导致 prompt_toolkit 无法重绘——user 与 assistant 一同渲染的根因)
         emit(f"{rgb(USER_PREFIX, 255, 224, 102)}{text}")
+        _start_request(s, conn)
+        return
+    _do_request(s, conn)
+
+
+def _do_request(s: session_store.ChatSession, conn) -> None:
+    """实际请求:组装上下文 → spinner 中调用 API → emit assistant 并持久化。"""
     messages: list[dict] = []
     sp = system_prompt()
     if sp:
@@ -92,6 +105,21 @@ def send_message(s: session_store.ChatSession, text: str) -> None:
     emit(f"{rgb(ASSISTANT_PREFIX, 102, 170, 255)}{reply}")
     session_store.append_message(s, "assistant", reply)
     session_store.save_session(s)
+
+
+def _start_request(s: session_store.ChatSession, conn) -> None:
+    """后台线程执行请求;期间置 _request_active(TUI spinner 动画轮询),结束复位。"""
+    global _request_active
+    _request_active = True
+
+    def run() -> None:
+        global _request_active
+        try:
+            _do_request(s, conn)
+        finally:
+            _request_active = False
+
+    threading.Thread(target=run, daemon=True).start()
 
 
 def list_sessions() -> None:

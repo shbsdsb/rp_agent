@@ -259,11 +259,13 @@ def test_spinner_silent_in_tui(capsys, monkeypatch):
 
 
 def test_send_message_tui_emits_user_prefix(monkeypatch, tmp_path):
-    """TUI 下 user 消息 emit 到输出区,先于 assistant(交替显示)。"""
+    """TUI 下 user 消息立即 emit,assistant 异步到达后交替显示。"""
     _setup(monkeypatch, tmp_path)
-    collected: list[str] = []
+    import time
+
     from rp_agent import output
 
+    collected: list[str] = []
     output.set_emit_target(collected.append)  # 模拟 TUI(emit 目标非默认 print)
     try:
         monkeypatch.setattr(
@@ -273,10 +275,18 @@ def test_send_message_tui_emits_user_prefix(monkeypatch, tmp_path):
         s = create_session(connection="demo")
         save_session(s)
         send_message(s, "你好")
+        assert collected[0].startswith("user> 你好")  # user 立即渲染
+        # assistant 由后台线程异步 emit,轮询等待
+        for _ in range(100):
+            if any(a.startswith("assistant>") for a in collected):
+                break
+            time.sleep(0.05)
+        assert "assistant> " in collected[-1]
     finally:
         output.reset_emit_target()
-    assert collected[0].startswith("user> 你好")
-    assert "assistant> " in collected[-1]
+        import rp_agent.core.chat as chat_mod
+
+        chat_mod._request_active = False
 
 
 def test_send_message_cli_no_user_emit(monkeypatch, tmp_path, capsys):
@@ -292,3 +302,50 @@ def test_send_message_cli_no_user_emit(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr().out
     assert "user> " not in out
     assert "assistant> " in out
+
+
+def test_send_message_tui_async_nonblocking(monkeypatch, tmp_path):
+    """TUI 下 send_message 不阻塞:user 立即 emit,请求在后台线程完成。"""
+    _setup(monkeypatch, tmp_path)
+    import threading
+    import time
+
+    from rp_agent import output
+
+    collected: list[str] = []
+    output.set_emit_target(collected.append)
+    gate = threading.Event()
+
+    def slow_chat(conn, messages, **kw):
+        gate.wait(5)
+        return "done"
+
+    monkeypatch.setattr("rp_agent.core.chat.chat", slow_chat)
+    s = create_session(connection="demo")
+    save_session(s)
+    try:
+        t0 = time.monotonic()
+        send_message(s, "你好")
+        elapsed = time.monotonic() - t0
+        assert elapsed < 1.0, f"send_message 应异步快速返回,实际 {elapsed:.2f}s"
+        assert collected[0].startswith("user> ")  # user 消息立即 emit
+        gate.set()  # 放行后台请求
+        for _ in range(100):
+            if any(a.startswith("assistant>") for a in collected):
+                break
+            time.sleep(0.05)
+        assert any(a.startswith("assistant>") for a in collected)
+        # 请求完成后 _request_active 复位(TUI spinner 停止依据;轮询等待复位)
+        import rp_agent.core.chat as chat_mod
+
+        for _ in range(100):
+            if not chat_mod._request_active:
+                break
+            time.sleep(0.05)
+        assert chat_mod._request_active is False
+    finally:
+        gate.set()
+        output.reset_emit_target()
+        import rp_agent.core.chat as chat_mod
+
+        chat_mod._request_active = False

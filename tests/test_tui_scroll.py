@@ -158,3 +158,26 @@ def test_shell_style_has_border_rule():
 
     rules = dict(SHELL_STYLE.style_rules)
     assert "border" in rules
+
+
+def test_status_text_shows_spinner_when_request_active():
+    """请求进行中时,状态栏显示点阵加载提示。"""
+    import rp_agent.core.chat as chat_mod
+
+    chat_mod._request_active = True
+    try:
+        text = tui._status_text()
+        rendered = "".join(s for _, s in text)
+        assert "正在请求" in rendered
+    finally:
+        chat_mod._request_active = False
+
+
+def test_status_text_no_spinner_when_idle():
+    """无请求时状态栏不显示加载提示。"""
+    import rp_agent.core.chat as chat_mod
+
+    chat_mod._request_active = False
+    text = tui._status_text()
+    rendered = "".join(s for _, s in text)
+    assert "正在请求" not in rendered
