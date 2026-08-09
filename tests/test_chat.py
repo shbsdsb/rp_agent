@@ -256,3 +256,39 @@ def test_spinner_silent_in_tui(capsys, monkeypatch):
     # TUI 下 spinner 静默:不 emit 任何内容(改造前非 tty 分支会 emit "正在请求…")
     assert collected == []
     assert capsys.readouterr().out == ""
+
+
+def test_send_message_tui_emits_user_prefix(monkeypatch, tmp_path):
+    """TUI 下 user 消息 emit 到输出区,先于 assistant(交替显示)。"""
+    _setup(monkeypatch, tmp_path)
+    collected: list[str] = []
+    from rp_agent import output
+
+    output.set_emit_target(collected.append)  # 模拟 TUI(emit 目标非默认 print)
+    try:
+        monkeypatch.setattr(
+            "rp_agent.core.chat.chat",
+            lambda conn, messages, **kw: "你好呀!",
+        )
+        s = create_session(connection="demo")
+        save_session(s)
+        send_message(s, "你好")
+    finally:
+        output.reset_emit_target()
+    assert collected[0].startswith("user> 你好")
+    assert "assistant> " in collected[-1]
+
+
+def test_send_message_cli_no_user_emit(monkeypatch, tmp_path, capsys):
+    """CLI(非 TUI)不 emit user 消息:依赖终端回显,避免重复。"""
+    _setup(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "rp_agent.core.chat.chat",
+        lambda conn, messages, **kw: "ok",
+    )
+    s = create_session(connection="demo")
+    save_session(s)
+    send_message(s, "你好")
+    out = capsys.readouterr().out
+    assert "user> " not in out
+    assert "assistant> " in out

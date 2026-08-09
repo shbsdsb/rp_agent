@@ -20,6 +20,8 @@ SYSTEM_PROMPT_PATH = (
 
 # assistant> 前缀色:#66AAFF(与输入前缀 chat> 的 #FFE066 区分)
 ASSISTANT_PREFIX = "assistant> "
+# user> 前缀色:暖黄(与输入前缀 chat> 的 #FFE066 同色系;assistant 用 #66AAFF 区分)
+USER_PREFIX = "user> "
 
 
 def system_prompt() -> str | None:
@@ -72,6 +74,8 @@ def send_message(s: session_store.ChatSession, text: str) -> None:
         return
     session_store.append_message(s, "user", text)
     session_store.save_session(s)
+    if output.is_tui():
+        emit(f"{rgb(USER_PREFIX, 255, 224, 102)}{text}")
     messages: list[dict] = []
     sp = system_prompt()
     if sp:
