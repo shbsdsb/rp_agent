@@ -25,6 +25,7 @@
 | 边框范围 | 全部四区:状态栏 / 输出区 / 输入区 / 提示行 |
 | user emit 位置 | `send_message` 内、调 API 前,TUI 门控(A1) |
 | 边框实现 | 自定义 `framed()` 容器(B2) |
+| 边框范围 | 输出区 + 输入区包裹;状态栏不包边框(1 行调小);最下方提示行删除 |
 
 ## 设计
 
@@ -60,15 +61,16 @@
 1. `tui.py` 新增 `framed(inner)` 辅助容器:
 
    ```python
-   def framed(inner: AnyContainer) -> AnyContainer:
+   def framed(inner) -> HSplit:
        """四边框包裹 inner:Unicode 圆角(╭─╮│╰╯),宽度/高度自适应。
 
-       顶/底边框行 = HSplit(左角, char='─' 填充, 右角):角字符固定在两端,
+       顶/底边框行 = VSplit(左角, char='─' 填充, 右角):角字符固定在两端,
        中间由 Window char 填充横线;左右竖线 = VSplit 中空内容 Window
        char='│' 填充整列(高度由 inner 决定)。
+       注意:prompt_toolkit 中 VSplit=左右排列、HSplit=上下堆叠,方向勿反。
        """
-       def _line(left: str, right: str) -> AnyContainer:
-           return HSplit(
+       def _line(left: str, right: str) -> VSplit:
+           return VSplit(
                [
                    Window(
                        FormattedTextControl(left),
@@ -130,16 +132,15 @@
    "border": "ansibrightblack",  # 边框线:灰色(prompt_toolkit 无 ansigray,用亮黑)
    ```
 
-3. `tui.py` 布局改为四区全部包裹:
+3. `tui.py` 布局调整:**状态栏不包边框(1 行,调小)**,输出区与输入区包边框,最下方提示行删除:
 
    ```python
    layout = Layout(
        HSplit(
            [
-               framed(Window(FormattedTextControl(_status_text), height=1, style="class:status")),
+               Window(FormattedTextControl(_status_text), height=1, style="class:status"),
                framed(output_win),
                framed(VSplit([prompt_win, input_win])),   # 输入区:prompt + 输入框
-               framed(Window(FormattedTextControl(hint), height=1, style="class:hint")),
            ]
        )
    )
