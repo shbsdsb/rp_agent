@@ -54,6 +54,66 @@ def top_offset(total: int, height: int) -> int:
     return clamp_offset(total, height, total)
 
 
+def framed(inner) -> HSplit:
+    """四边框包裹 inner:Unicode 圆角(╭─╮│╰╯),宽度/高度自适应。
+
+    顶/底边框行 = HSplit(左角, char='─' 填充, 右角):角字符固定在两端,
+    中间由 Window char 填充横线;左右竖线 = VSplit 中空内容 Window
+    char='│' 填充整列(高度由 inner 决定)。
+    """
+    def _line(left: str, right: str) -> HSplit:
+        return HSplit(
+            [
+                Window(
+                    FormattedTextControl(left),
+                    width=1,
+                    height=1,
+                    dont_extend_width=True,
+                    style="class:border",
+                ),
+                Window(
+                    FormattedTextControl(""),
+                    char="─",
+                    height=1,
+                    style="class:border",
+                ),
+                Window(
+                    FormattedTextControl(right),
+                    width=1,
+                    height=1,
+                    dont_extend_width=True,
+                    style="class:border",
+                ),
+            ]
+        )
+
+    return HSplit(
+        [
+            _line("╭", "╮"),
+            VSplit(
+                [
+                    Window(
+                        FormattedTextControl(""),
+                        char="│",
+                        width=1,
+                        dont_extend_width=True,
+                        style="class:border",
+                    ),
+                    inner,
+                    Window(
+                        FormattedTextControl(""),
+                        char="│",
+                        width=1,
+                        dont_extend_width=True,
+                        style="class:border",
+                    ),
+                ]
+            ),
+            _line("╰", "╯"),
+        ]
+    )
+
+
 def _sync_mode_clear(mode: str) -> bool:
     """模式变化 → 清空输出区。返回是否发生了清空(惰性 clear 与 _accept 主动 clear 共用)。"""
     global _tail_offset, _current_mode_snapshot
@@ -215,34 +275,40 @@ def run(initial_mode: str = "home") -> None:
         layout = Layout(
             HSplit(
                 [
-                    Window(
-                        FormattedTextControl(_status_text),
-                        height=1,
-                        style="class:status",
+                    framed(
+                        Window(
+                            FormattedTextControl(_status_text),
+                            height=1,
+                            style="class:status",
+                        )
                     ),
-                    output_win,
-                    VSplit(
-                        [
-                            Window(
-                                FormattedTextControl(
-                                    lambda: _prompt_for_mode(shell_mod._current_mode)
+                    framed(output_win),
+                    framed(
+                        VSplit(
+                            [
+                                Window(
+                                    FormattedTextControl(
+                                        lambda: _prompt_for_mode(shell_mod._current_mode)
+                                    ),
+                                    width=10,
+                                    dont_extend_width=True,
+                                    style="class:chat-prompt",
                                 ),
-                                width=10,
-                                dont_extend_width=True,
-                                style="class:chat-prompt",
-                            ),
-                            Window(
-                                BufferControl(buffer=buff, lexer=ShellLexer()),
-                                height=1,
-                            ),
-                        ]
+                                Window(
+                                    BufferControl(buffer=buff, lexer=ShellLexer()),
+                                    height=1,
+                                ),
+                            ]
+                        )
                     ),
-                    Window(
-                        FormattedTextControl(
-                            "reload --tui/--cli 切换界面 | PageUp/PageDown/滚轮滚动 | exit 退出"
-                        ),
-                        height=1,
-                        style="class:hint",
+                    framed(
+                        Window(
+                            FormattedTextControl(
+                                "reload --tui/--cli 切换界面 | PageUp/PageDown/滚轮滚动 | exit 退出"
+                            ),
+                            height=1,
+                            style="class:hint",
+                        )
                     ),
                 ]
             )

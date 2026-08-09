@@ -128,3 +128,27 @@ def test_top_offset_uses_render_height():
     assert top_offset(total=5, height=30) == 0     # 内容不足一屏 → 贴底显示全部
     assert top_offset(total=100, height=10) == 90  # 与旧行为一致(高度恰好 10 时)
 
+
+
+def test_framed_builds_border_structure():
+    """framed 返回 HSplit(顶线/内容/底线),内容左右包竖线列。"""
+    from prompt_toolkit.layout.containers import HSplit, VSplit, Window
+    from prompt_toolkit.layout.controls import FormattedTextControl
+
+    from rp_agent.tui import framed
+
+    inner = Window(FormattedTextControl("x"))
+    box = framed(inner)
+    assert isinstance(box, HSplit)
+    assert len(box.children) == 3
+    mid = box.children[1]
+    assert isinstance(mid, VSplit)
+    assert len(mid.children) == 3
+    assert mid.children[1] is inner
+
+
+def test_shell_style_has_border_rule():
+    from rp_agent.shell import SHELL_STYLE
+
+    rules = dict(SHELL_STYLE.style_rules)
+    assert "border" in rules

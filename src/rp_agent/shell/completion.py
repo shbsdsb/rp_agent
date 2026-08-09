@@ -24,6 +24,7 @@ SHELL_STYLE = Style.from_dict(
         "status-mode": "ansiyellow bold",
         "status-dim": "ansibrightblack",
         "hint": "ansibrightblack",
+        "border": "ansibrightblack",  # 边框线:灰色(prompt_toolkit 无 ansigray,用亮黑)
         # 其他 token(class:default)不定义:保持终端默认白色
     }
 )
