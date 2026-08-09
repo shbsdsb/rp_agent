@@ -61,8 +61,9 @@ def framed(inner) -> HSplit:
     中间由 Window char 填充横线;左右竖线 = VSplit 中空内容 Window
     char='│' 填充整列(高度由 inner 决定)。
     """
-    def _line(left: str, right: str) -> HSplit:
-        return HSplit(
+    def _line(left: str, right: str) -> VSplit:
+        # VSplit = 水平排列(左角/填充/右角),注意与 HSplit(上下堆叠)方向相反
+        return VSplit(
             [
                 Window(
                     FormattedTextControl(left),
@@ -275,12 +276,11 @@ def run(initial_mode: str = "home") -> None:
         layout = Layout(
             HSplit(
                 [
-                    framed(
-                        Window(
-                            FormattedTextControl(_status_text),
-                            height=1,
-                            style="class:status",
-                        )
+                    # 状态栏:不包边框,保持 1 行(调小)
+                    Window(
+                        FormattedTextControl(_status_text),
+                        height=1,
+                        style="class:status",
                     ),
                     framed(output_win),
                     framed(
@@ -299,15 +299,6 @@ def run(initial_mode: str = "home") -> None:
                                     height=1,
                                 ),
                             ]
-                        )
-                    ),
-                    framed(
-                        Window(
-                            FormattedTextControl(
-                                "reload --tui/--cli 切换界面 | PageUp/PageDown/滚轮滚动 | exit 退出"
-                            ),
-                            height=1,
-                            style="class:hint",
                         )
                     ),
                 ]

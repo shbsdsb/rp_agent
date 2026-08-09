@@ -131,7 +131,7 @@ def test_top_offset_uses_render_height():
 
 
 def test_framed_builds_border_structure():
-    """framed 返回 HSplit(顶线/内容/底线),内容左右包竖线列。"""
+    """framed 返回 HSplit(顶线/内容/底线);顶/底线为水平排列(角+填充+角)。"""
     from prompt_toolkit.layout.containers import HSplit, VSplit, Window
     from prompt_toolkit.layout.controls import FormattedTextControl
 
@@ -141,6 +141,12 @@ def test_framed_builds_border_structure():
     box = framed(inner)
     assert isinstance(box, HSplit)
     assert len(box.children) == 3
+    top = box.children[0]
+    assert isinstance(top, VSplit)  # 顶线三元素水平排列:╭ ── ╮ 在同一行
+    assert len(top.children) == 3
+    bottom = box.children[2]
+    assert isinstance(bottom, VSplit)
+    assert len(bottom.children) == 3
     mid = box.children[1]
     assert isinstance(mid, VSplit)
     assert len(mid.children) == 3
